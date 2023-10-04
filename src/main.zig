@@ -1,29 +1,174 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 var hadError = false;
 var keywords: std.StringHashMapUnmanaged(TokenType) = .{};
+const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    var allocator: Allocator = undefined;
+    var general_purpose_allocator = GeneralPurposeAllocator(.{}){};
+    const gpa = general_purpose_allocator.allocator();
+    var arena_instance = std.heap.ArenaAllocator.init(gpa);
+    defer arena_instance.deinit();
+    allocator = arena_instance.allocator();
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-    try initKeywords(allocator);
-    defer keywords.deinit(allocator);
-    // std.debug.print("Args {s}", .{args.len});
-    if (args.len > 2) {
-        std.debug.print("Usage milo [script]", .{});
-        std.process.exit(0);
-    } else if (args.len == 2) {
-        try runFile(args[0], allocator);
-    } else {
-        try runPrompt(allocator);
-        if (hadError) {
-            std.os.exit(64);
-        }
-    }
+    var nm: []const u8 = "123";
+    var lit = Expr.initLiteral(nm);
+    var unary = Expr.initUnary(&lit, Token{ .tokenType = TokenType.MINUS, .lexer = "-", .line = 1 });
+    var token = .{ .tokenType = TokenType.STAR, .lexer = "*", .line = 1 };
+    var otherLit = Expr.initLiteral("45.67");
+    var grouping = Expr.initGrouping(&otherLit);
+    var expression = Expr.initBinary(token, &unary, &grouping);
+    var astPrinter: AstPrinter = .{ .allocator = allocator };
+    var result = astPrinter.print(&expression);
+    std.debug.print("{s}", .{result});
 }
+
+// pub fn main() !void {
+//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+//     defer _ = gpa.deinit();
+//     const allocator = gpa.allocator();
+
+//     const args = try std.process.argsAlloc(allocator);
+//     defer std.process.argsFree(allocator, args);
+//     try initKeywords(allocator);
+//     defer keywords.deinit(allocator);
+//     // std.debug.print("Args {s}", .{args.len});
+//     if (args.len > 2) {
+//         std.debug.print("Usage milo [script]", .{});
+//         std.process.exit(0);
+//     } else if (args.len == 2) {
+//         try runFile(args[0], allocator);
+//     } else {
+//         try runPrompt(allocator);
+//         if (hadError) {
+//             std.os.exit(64);
+//         }
+//     }
+// }
+//
+const Expr = struct {
+    operator: ?Token = null,
+    expression: ?*Expr = null,
+    left: ?*Expr = null,
+    right: ?*Expr = null,
+    val: ?[]const u8 = null,
+    tag: ExprType,
+
+    pub const Self = @This();
+
+    fn initBinary(op: Token, left: *Expr, right: *Expr) Expr {
+        return .{
+            .tag = ExprType.binary,
+            .operator = op,
+            .left = left,
+            .right = right,
+        };
+    }
+
+    fn initLiteral(val: []const u8) Expr {
+        return .{
+            .tag = ExprType.literal,
+            .val = val,
+        };
+    }
+
+    fn initGrouping(expr: *Expr) @This() {
+        return .{
+            .tag = ExprType.grouping,
+            .expression = expr,
+        };
+    }
+
+    fn initUnary(right: *Expr, op: Token) @This() {
+        return .{
+            .tag = ExprType.unary,
+            .operator = op,
+            .right = right,
+        };
+    }
+
+    fn accept(this: *Expr, visitor: anytype, comptime T: type) T {
+        return switch (this.tag) {
+            .binary => visitor.visitBinary(this),
+            .unary => visitor.visitUnary(this),
+            .literal => visitor.visitLiteral(this),
+            .grouping => visitor.visitGrouping(this),
+        };
+    }
+};
+
+const ExprType = enum {
+    binary,
+    unary,
+    literal,
+    grouping,
+};
+// const ExprType = union(enum) {
+//     binary: Expr,
+//     literal: Expr,
+//     grouping: Expr,
+//     unary: Expr,
+//
+//     fn eval(e: Expr, visitor: anytype, comptime T: type) T {
+//     }
+// };
+
+const AstPrinter = struct {
+    allocator: Allocator,
+
+    fn print(this: *AstPrinter, expr: *Expr) []const u8 {
+        return expr.accept(this, []const u8);
+    }
+
+    fn visitBinary(this: *AstPrinter, expr: *Expr) []const u8 {
+        var expressions = [_]*Expr{ expr.left.?, expr.right.? };
+        return this.parenthesize(expr.operator.?.lexer, &expressions);
+    }
+
+    fn visitLiteral(this: *AstPrinter, expr: *Expr) []const u8 {
+        _ = this;
+        if (expr.val == null) return "nil";
+        return expr.val.?;
+    }
+
+    fn visitUnary(this: *AstPrinter, expr: *Expr) []const u8 {
+        var expressions = [_]*Expr{expr.right.?};
+        return this.parenthesize(expr.operator.?.lexer, &expressions);
+    }
+
+    fn visitGrouping(this: *AstPrinter, expr: *Expr) []const u8 {
+        var expressions = [_]*Expr{expr.expression.?};
+        return this.parenthesize("group", &expressions);
+    }
+
+    fn asd(this: *AstPrinter) void {
+        var sd = this.allocator.create(u8) catch |e| {
+            std.debug.print("error {}", e);
+            std.os.exit(64);
+        };
+        _ = sd;
+    }
+
+    fn parenthesize(this: *AstPrinter, name: []const u8, expres: []*Expr) []const u8 {
+        // std.debug.print("{} AND POINTEr {}", .{ this.allocator, &this.allocator });
+        var builder: []const u8 = std.fmt.allocPrint(this.allocator, "({s}", .{name}) catch |e| {
+            std.debug.print("Error {}", .{e});
+            std.os.exit(64);
+        };
+        for (expres) |expr| {
+            builder = std.fmt.allocPrint(this.allocator, "{s} {s}", .{ builder, expr.accept(this, []const u8) }) catch |e| {
+                std.debug.print("Error {}", .{e});
+                std.os.exit(64);
+            };
+        }
+        builder = std.fmt.allocPrint(this.allocator, "{s})", .{builder}) catch |e| {
+            std.debug.print("Error {}", .{e});
+            std.os.exit(64);
+        };
+        return builder;
+    }
+};
 
 fn initKeywords(alloc: std.mem.Allocator) !void {
     // _ = keywords.init(alloc);
