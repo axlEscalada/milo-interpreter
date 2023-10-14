@@ -61,8 +61,8 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         var parser = Parser{ .tokens = &rs, .allocator = alloc };
         var astPrinter = AstPrinter{ .allocator = alloc };
         var expr = parser.expression();
-        var resultPrint = astPrinter.print(&expr);
-        std.debug.print("{s}", .{resultPrint});
+        var resultPrint = astPrinter.print(expr);
+        std.debug.print("{s}\n", .{resultPrint});
 
         if (!hadError) {
             for (rs[0..]) |*r| {
@@ -107,7 +107,7 @@ const Parser = struct {
         while (self.match(&tokenTypes)) {
             const operator = self.previous();
             var right = self.comparison();
-            expr = Expr.initBinary(operator, &expr, &right);
+            expr = Expr.initBinary(self.allocator, operator, expr, right);
         }
         return expr;
     }
@@ -118,7 +118,7 @@ const Parser = struct {
         while (self.match(&tokenTypes)) {
             const operator = self.previous();
             var right = self.term();
-            expr = Expr.initBinary(operator, &expr, &right);
+            expr = Expr.initBinary(self.allocator, operator, expr, right);
         }
         return expr;
     }
@@ -129,7 +129,7 @@ const Parser = struct {
         while (self.match(&tokenTypes)) {
             const operator = self.previous();
             var right = self.factor();
-            expr = Expr.initBinary(operator, &expr, &right);
+            expr = Expr.initBinary(self.allocator, operator, expr, right);
         }
         return expr;
     }
@@ -140,37 +140,37 @@ const Parser = struct {
         while (self.match(&tokenTypes)) {
             const operator = self.previous();
             var right = self.unary();
-            expr = Expr.initBinary(operator, &expr, &right);
+            expr = Expr.initBinary(self.allocator, operator, expr, right);
         }
         return expr;
     }
 
-    fn unary(self: *Parser) Expr {
+    fn unary(self: *Parser) *Expr {
         var tokenTypes = [2]TokenType{ TokenType.BANG, TokenType.LESS };
         if (self.match(&tokenTypes)) {
             var operator = self.previous();
             var right = self.unary();
-            return Expr.initUnary(&right, operator);
+            return Expr.initUnary(self.allocator, right, operator);
         }
         return self.primary();
     }
 
-    fn primary(self: *Parser) Expr {
+    fn primary(self: *Parser) *Expr {
         var tokenTypes = [_]TokenType{ TokenType.STRING, TokenType.NUMBER, TokenType.NIL, TokenType.TRUE, TokenType.FALSE };
         if (self.match(&tokenTypes)) {
-            return Expr.initLiteral(self.peek().lexer);
+            return Expr.initLiteral(self.allocator, self.peek().lexer);
         }
         var parType = [1]TokenType{TokenType.LEFT_PAREN};
         if (self.match(&parType)) {
             var expr = self.expression();
             _ = self.consume(TokenType.RIGHT_PAREN, "Expr ')' after expression");
-            return Expr.initGrouping(&expr);
+            return Expr.initGrouping(self.allocator, expr);
         }
         report(self.peek().line, "Error", "", self.allocator) catch |e| {
             std.debug.print("Error {}", .{e});
             @panic("Errorrrrrr parsing");
         };
-        return Expr{ .tag = ExprType.err };
+        std.os.exit(64);
     }
 
     fn consume(self: *Parser, tokenType: TokenType, msg: []const u8) Token {
@@ -230,38 +230,47 @@ const Expr = struct {
     pub const Self = @This();
 
     fn initBinary(allocator: Allocator, op: Token, left: *Expr, right: *Expr) *Expr {
-        var expr = try allocator.create(Expr) catch |e| {
+        var expr = allocator.create(Expr) catch |e| {
             std.debug.print("Error {}", .{e});
             std.os.exit(64);
         };
 
-       expr.tag = ExprType.binary,
-       expr.operator = op,
-       expr.left = left,
-       expr.right = right,
+        expr.tag = ExprType.binary;
+        expr.operator = op;
+        expr.left = left;
+        expr.right = right;
         return expr;
     }
 
-    fn initLiteral(val: []const u8) Expr {
-        return .{
-            .tag = ExprType.literal,
-            .val = val,
+    fn initLiteral(allocator: Allocator, val: []const u8) *Expr {
+        var expr = allocator.create(Expr) catch |e| {
+            std.debug.print("Error {}", .{e});
+            std.os.exit(64);
         };
+        expr.tag = ExprType.literal;
+        expr.val = val;
+        return expr;
     }
 
-    fn initGrouping(expr: *Expr) @This() {
-        return .{
-            .tag = ExprType.grouping,
-            .expression = expr,
+    fn initGrouping(allocator: Allocator, group: *Expr) *@This() {
+        var expr = allocator.create(Expr) catch |e| {
+            std.debug.print("Error {}", .{e});
+            std.os.exit(64);
         };
+        expr.tag = ExprType.grouping;
+        expr.expression = group;
+        return expr;
     }
 
-    fn initUnary(right: *Expr, op: Token) @This() {
-        return .{
-            .tag = ExprType.unary,
-            .operator = op,
-            .right = right,
+    fn initUnary(allocator: Allocator, right: *Expr, op: Token) *@This() {
+        var expr = allocator.create(Expr) catch |e| {
+            std.debug.print("Error {}", .{e});
+            std.os.exit(64);
         };
+        expr.tag = ExprType.unary;
+        expr.operator = op;
+        expr.right = right;
+        return expr;
     }
 
     fn accept(this: *Expr, visitor: anytype, comptime T: type) T {
