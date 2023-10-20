@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 const Expr = @import("expression.zig").Expr;
 const Object = @import("expression.zig").Object;
 
-const Interpreter = struct {
+pub const Interpreter = struct {
     allocator: Allocator,
 
     fn visitLiteralExpr(self: *Interpreter, expr: *Expr) *Object {
@@ -34,7 +34,7 @@ const Interpreter = struct {
     }
 };
 
-const AstPrinter = struct {
+pub const AstPrinter = struct {
     allocator: Allocator,
 
     fn print(this: *AstPrinter, expr: *Expr) []const u8 {

@@ -23,7 +23,7 @@ pub fn createToken(alloc: Allocator, tokenType: TokenType, text: []const u8, lin
     return token;
 }
 
-const TokenType = enum {
+pub const TokenType = enum {
     LEFT_PAREN,
     RIGHT_PAREN,
     LEFT_BRACE,

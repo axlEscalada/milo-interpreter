@@ -61,7 +61,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         if (std.mem.eql(u8, line, "exit")) std.process.exit(0);
         var scanner = Scanner{ .source = line, .alloc = alloc };
         var rs = try scanner.scanTokens();
-        var parser = Parser{ .tokens = &rs, .allocator = alloc };
+        var parser = Parser{ .tokens = rs, .allocator = alloc };
         var astPrinter = AstPrinter{ .allocator = alloc };
         var expr = parser.expression() catch |e| {
             hadError = true;

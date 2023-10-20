@@ -1,9 +1,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Token = @import("token.zig");
+const token = @import("token.zig");
 
 pub const Expr = struct {
-    operator: ?Token = null,
+    operator: ?token.Token = null,
     expression: ?*Expr = null,
     left: ?*Expr = null,
     right: ?*Expr = null,
@@ -13,7 +13,7 @@ pub const Expr = struct {
 
     pub const Self = @This();
 
-    fn initBinary(allocator: Allocator, op: Token, left: *Expr, right: *Expr) *Expr {
+    pub fn initBinary(allocator: Allocator, op: token.Token, left: *Expr, right: *Expr) *Expr {
         var expr = allocator.create(Expr) catch |e| {
             std.debug.print("Error {}", .{e});
             std.os.exit(64);
@@ -26,7 +26,7 @@ pub const Expr = struct {
         return expr;
     }
 
-    fn initLiteral(allocator: Allocator, valueString: []const u8, value: *Object) *Expr {
+    pub fn initLiteral(allocator: Allocator, valueString: []const u8, value: *Object) *Expr {
         var expr = allocator.create(Expr) catch |e| {
             std.debug.print("Error {}", .{e});
             std.os.exit(64);
@@ -37,7 +37,7 @@ pub const Expr = struct {
         return expr;
     }
 
-    fn initGrouping(allocator: Allocator, group: *Expr) *@This() {
+    pub fn initGrouping(allocator: Allocator, group: *Expr) *@This() {
         var expr = allocator.create(Expr) catch |e| {
             std.debug.print("Error {}", .{e});
             std.os.exit(64);
@@ -47,7 +47,7 @@ pub const Expr = struct {
         return expr;
     }
 
-    fn initUnary(allocator: Allocator, right: *Expr, op: Token) *@This() {
+    pub fn initUnary(allocator: Allocator, right: *Expr, op: token.Token) *@This() {
         var expr = allocator.create(Expr) catch |e| {
             std.debug.print("Error {}", .{e});
             std.os.exit(64);
@@ -58,7 +58,7 @@ pub const Expr = struct {
         return expr;
     }
 
-    fn accept(this: *Expr, visitor: anytype, comptime T: type) T {
+    pub fn accept(this: *Expr, visitor: anytype, comptime T: type) T {
         return switch (this.tag) {
             .binary => visitor.visitBinary(this),
             .unary => visitor.visitUnary(this),
