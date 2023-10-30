@@ -12,11 +12,11 @@ current: usize = 0,
 tokens: []*Token,
 allocator: Allocator,
 
-pub fn expression(self: *Parser) !*Expr {
+pub fn expression(self: *Parser) *Expr {
     return self.equality();
 }
 
-fn equality(self: *Parser) !*Expr {
+fn equality(self: *Parser) *Expr {
     var expr = self.comparison();
 
     var tokenTypes = [2]TokenType{ TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL };
@@ -28,7 +28,7 @@ fn equality(self: *Parser) !*Expr {
     return expr;
 }
 
-fn comparison(self: *Parser) !*Expr {
+fn comparison(self: *Parser) *Expr {
     var expr = self.term();
     var tokenTypes = [4]TokenType{ TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL };
     while (self.match(&tokenTypes)) {
@@ -39,7 +39,7 @@ fn comparison(self: *Parser) !*Expr {
     return expr;
 }
 
-fn term(self: *Parser) !*Expr {
+fn term(self: *Parser) *Expr {
     var expr = self.factor();
     var tokenTypes = [2]TokenType{ TokenType.MINUS, TokenType.PLUS };
     while (self.match(&tokenTypes)) {
@@ -50,7 +50,7 @@ fn term(self: *Parser) !*Expr {
     return expr;
 }
 
-fn factor(self: *Parser) !*Expr {
+fn factor(self: *Parser) *Expr {
     var expr = self.unary();
     var tokenTypes = [2]TokenType{ TokenType.STAR, TokenType.SLASH };
     while (self.match(&tokenTypes)) {
@@ -61,7 +61,7 @@ fn factor(self: *Parser) !*Expr {
     return expr;
 }
 
-fn unary(self: *Parser) !*Expr {
+fn unary(self: *Parser) *Expr {
     var tokenTypes = [2]TokenType{ TokenType.BANG, TokenType.LESS };
     if (self.match(&tokenTypes)) {
         var operator = self.previous();
@@ -71,7 +71,7 @@ fn unary(self: *Parser) !*Expr {
     return self.primary();
 }
 
-fn primary(self: *Parser) !*Expr {
+fn primary(self: *Parser) *Expr {
     var tokenTypes = [_]TokenType{ TokenType.STRING, TokenType.NUMBER, TokenType.NIL, TokenType.TRUE, TokenType.FALSE };
     if (self.matchType(&tokenTypes)) |tokenType| {
         return Expr.initLiteral(self.allocator, self.peek().lexer, self.createLiteral(tokenType, self.peek().lexer));
@@ -82,14 +82,15 @@ fn primary(self: *Parser) !*Expr {
         _ = self.consume(TokenType.RIGHT_PAREN, "Expr ')' after expression");
         return Expr.initGrouping(self.allocator, expr);
     }
+    @panic("Can't close parenthesis");
 }
 
-fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*Object {
+fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) *Object {
     return switch (tokenType) {
         .STRING => return Object.initString(self.allocator, lexer),
         .FALSE => return Object.initBool(self.allocator, false),
         .TRUE => return Object.initBool(self.allocator, true),
-        .NUMBER => return Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer)),
+        .NUMBER => return Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch @panic("Error parsing float")),
         else => unreachable,
     };
 }

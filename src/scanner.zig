@@ -29,7 +29,7 @@ pub fn scanTokens(self: *Scanner) ![]*Token {
         try self.*.scanToken();
     }
 
-    self.*.tokens[self.*.tokensSize] = self.createToken(TokenType.EOF, "", self.*.line).?;
+    self.*.tokens[self.*.tokensSize] = self.createToken(TokenType.EOF, "", self.*.line);
     self.*.tokensSize += 1;
     return self.tokens;
 }
@@ -151,7 +151,7 @@ fn advance(self: *Scanner) u8 {
 fn addToken(self: *Scanner, tokenType: TokenType) void {
     var text = self.*.source[self.start..self.current];
 
-    self.*.tokens[self.*.tokensSize] = self.createToken(tokenType, text, self.*.line).?;
+    self.*.tokens[self.*.tokensSize] = self.createToken(tokenType, text, self.*.line);
     self.*.tokensSize += 1;
 }
 
@@ -162,8 +162,10 @@ fn match(self: *Scanner, expected: u8) bool {
     return true;
 }
 
-fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16) ?*Token {
-    return self.createLiteralToken(tokenType, text, line, null);
+fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16) *Token {
+    if (self.createLiteralToken(tokenType, text, line, null)) |v| {
+        return v;
+    } else @panic("Failed allocating token");
 }
 
 fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16, literal: ?Object) ?*Token {

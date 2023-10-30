@@ -59,24 +59,23 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         _ = try stdout.write(">> ");
         line = try stdin.readUntilDelimiterOrEof(&buffer, '\n') orelse "";
         if (std.mem.eql(u8, line, "exit")) std.process.exit(0);
+
         var scanner = Scanner{ .source = line, .alloc = alloc };
         var rs = try scanner.scanTokens();
-        var parser = Parser{ .tokens = rs, .allocator = alloc };
-        var astPrinter = AstPrinter{ .allocator = alloc };
-        var expr = parser.expression() catch |e| {
-            hadError = true;
-            std.debug.print("{}", .{e});
-        };
-        if (!hadError) {
-            var resultPrint = astPrinter.print(expr);
-            std.debug.print("{s}\n", .{resultPrint});
-            for (rs[0..]) |*r| {
-                if (r.*.tokenType == TokenType.EOF) break;
-                const final_url = try std.fmt.allocPrint(alloc, "Token: `{s}` Type: {}\n", .{ r.*.lexer, r.*.tokenType });
-                defer alloc.free(final_url);
-                _ = try stdout.write(final_url);
-            }
-        }
+        _ = rs;
+        // var parser = Parser{ .tokens = rs, .allocator = alloc };
+        // var astPrinter = AstPrinter{ .allocator = alloc };
+        // var expr = parser.expression();
+        // if (!hadError) {
+        //     var resultPrint = astPrinter.print(expr);
+        //     std.debug.print("{s}\n", .{resultPrint});
+        //     for (rs[0..]) |*r| {
+        //         if (r.*.tokenType == TokenType.EOF) break;
+        //         const final_url = try std.fmt.allocPrint(alloc, "Token: `{s}` Type: {}\n", .{ r.*.lexer, r.*.tokenType });
+        //         defer alloc.free(final_url);
+        //         _ = try stdout.write(final_url);
+        //     }
+        // }
 
         hadError = false;
     }

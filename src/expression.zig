@@ -76,26 +76,26 @@ pub const Object = union(ObjectType) {
     float: f64,
     boolean: bool,
 
-    fn init(allocator: Allocator) *Object {
+    pub fn init(allocator: Allocator) *Object {
         return allocator.create(Object) catch |e| {
             std.debug.print("Error {}", .{e});
             std.os.exit(64);
         };
     }
 
-    fn initBool(allocator: Allocator, boolean: bool) *Object {
+    pub fn initBool(allocator: Allocator, boolean: bool) *Object {
         var obj = Object.init(allocator);
         obj.boolean = boolean;
         return obj;
     }
 
-    fn initFloat(allocator: Allocator, float: f64) *Object {
+    pub fn initFloat(allocator: Allocator, float: f64) *Object {
         var obj = Object.init(allocator);
         obj.float = float;
         return obj;
     }
 
-    fn initString(allocator: Allocator, string: []const u8) *Object {
+    pub fn initString(allocator: Allocator, string: []const u8) *Object {
         var obj = Object.init(allocator);
         obj.string = string;
         return obj;

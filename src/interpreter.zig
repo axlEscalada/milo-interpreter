@@ -6,12 +6,12 @@ const Object = @import("expression.zig").Object;
 pub const Interpreter = struct {
     allocator: Allocator,
 
-    fn visitLiteralExpr(self: *Interpreter, expr: *Expr) *Object {
+    pub fn visitLiteralExpr(self: *Interpreter, expr: *Expr) *Object {
         _ = self;
         return expr.value.?;
     }
 
-    fn visitUnaryExpr(self: *Interpreter, expr: *Expr) *Object {
+    pub fn visitUnaryExpr(self: *Interpreter, expr: *Expr) *Object {
         var right = self.evaluate(expr.right);
 
         return switch (expr.operator.?.tokenType) {
@@ -37,28 +37,28 @@ pub const Interpreter = struct {
 pub const AstPrinter = struct {
     allocator: Allocator,
 
-    fn print(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn print(this: *AstPrinter, expr: *Expr) []const u8 {
         return expr.accept(this, []const u8);
     }
 
-    fn visitBinary(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn visitBinary(this: *AstPrinter, expr: *Expr) []const u8 {
         var expressions = [_]*Expr{ expr.left.?, expr.right.? };
         return this.parenthesize(expr.operator.?.lexer, &expressions);
     }
 
-    fn visitLiteral(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn visitLiteral(this: *AstPrinter, expr: *Expr) []const u8 {
         _ = this;
         if (expr.valueString) |v| {
             return v;
         } else return "nil";
     }
 
-    fn visitUnary(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn visitUnary(this: *AstPrinter, expr: *Expr) []const u8 {
         var expressions = [_]*Expr{expr.right.?};
         return this.parenthesize(expr.operator.?.lexer, &expressions);
     }
 
-    fn visitGrouping(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn visitGrouping(this: *AstPrinter, expr: *Expr) []const u8 {
         var expressions = [_]*Expr{expr.expression.?};
         return this.parenthesize("group", &expressions);
     }
