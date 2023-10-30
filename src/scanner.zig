@@ -16,7 +16,7 @@ const keywords = initKeywords();
 const Scanner = @This();
 
 source: []const u8,
-tokens: []*Token = undefined,
+tokens: []*Token,
 tokensSize: usize = 0,
 start: u16 = 0,
 current: u16 = 0,
@@ -25,12 +25,15 @@ alloc: std.mem.Allocator = undefined,
 
 pub fn scanTokens(self: *Scanner) ![]*Token {
     while (!self.isAtEnd()) {
-        self.*.start = self.*.current;
-        try self.*.scanToken();
+        self.start = self.*.current;
+        try self.scanToken();
     }
 
-    self.*.tokens[self.*.tokensSize] = self.createToken(TokenType.EOF, "", self.*.line);
-    self.*.tokensSize += 1;
+    var rs = self.createToken(TokenType.EOF, "", self.line);
+    std.debug.print("RS: {}\n", .{rs});
+    self.tokens[self.tokensSize] = rs;
+    // self.tokens[self.tokensSize] = self.createToken(TokenType.EOF, "", self.line);
+    self.tokensSize += 1;
     return self.tokens;
 }
 
@@ -149,10 +152,15 @@ fn advance(self: *Scanner) u8 {
 }
 
 fn addToken(self: *Scanner, tokenType: TokenType) void {
-    var text = self.*.source[self.start..self.current];
+    var text = self.*.source[self.*.start..self.*.current];
 
-    self.*.tokens[self.*.tokensSize] = self.createToken(tokenType, text, self.*.line);
-    self.*.tokensSize += 1;
+    var rs = self.createToken(tokenType, text, self.*.line);
+    std.debug.print("RS: {&} TYPE: {}\n", .{ &rs, @TypeOf(rs) });
+    std.debug.print("INDEX {}\n", .{self.*.tokensSize});
+    self.*.tokens[self.*.tokensSize] = rs;
+    std.debug.print("SIZE = {}\n", .{self.*.tokensSize});
+    // self.tokens[self.tokensSize] = self.createToken(tokenType, text, self.line);
+    self.tokensSize += 1;
 }
 
 fn match(self: *Scanner, expected: u8) bool {
@@ -163,22 +171,20 @@ fn match(self: *Scanner, expected: u8) bool {
 }
 
 fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16) *Token {
-    if (self.createLiteralToken(tokenType, text, line, null)) |v| {
-        return v;
-    } else @panic("Failed allocating token");
+    std.debug.print("TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
+    return self.createLiteralToken(tokenType, text, line, null);
 }
 
-fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16, literal: ?Object) ?*Token {
-    var token: ?*Token = self.*.alloc.create(Token) catch |e| {
+fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16, literal: ?Object) *Token {
+    var token: *Token = self.alloc.create(Token) catch |e| {
         std.debug.print("Error creating Token: {}", .{e});
-        return null;
+        @panic("Error allocating token");
     };
 
-    if (token) |tk| {
-        tk.*.tokenType = tokenType;
-        tk.*.lexer = text;
-        tk.*.line = line;
-        tk.*.literal = literal;
-    }
+    std.debug.print("TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
+    token.*.tokenType = tokenType;
+    token.*.lexer = "lexer";
+    token.*.line = 12;
+    token.*.literal = literal;
     return token;
 }

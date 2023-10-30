@@ -60,7 +60,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         line = try stdin.readUntilDelimiterOrEof(&buffer, '\n') orelse "";
         if (std.mem.eql(u8, line, "exit")) std.process.exit(0);
 
-        var scanner = Scanner{ .source = line, .alloc = alloc };
+        var scanner = Scanner{ .source = line, .alloc = alloc, .tokens = undefined };
         var rs = try scanner.scanTokens();
         _ = rs;
         // var parser = Parser{ .tokens = rs, .allocator = alloc };
