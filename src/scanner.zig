@@ -4,11 +4,11 @@ const TokenType = @import("token.zig").TokenType;
 const Logger = @import("logger.zig");
 const Object = @import("expression.zig").Object;
 
-fn initKeywords() type {
+fn initKeywords() std.StaticStringMap(TokenType) {
     const KV = struct { []const u8, TokenType };
     const kvs: [16]KV = [_]KV{ .{ "and", TokenType.AND }, .{ "class", TokenType.CLASS }, .{ "else", TokenType.ELSE }, .{ "false", TokenType.FALSE }, .{ "for", TokenType.FOR }, .{ "fun", TokenType.FUN }, .{ "if", TokenType.IF }, .{ "nil", TokenType.NIL }, .{ "or", TokenType.OR }, .{ "print", TokenType.PRINT }, .{ "return", TokenType.RETURN }, .{ "super", TokenType.SUPER }, .{ "this", TokenType.THIS }, .{ "true", TokenType.TRUE }, .{ "var", TokenType.VAR }, .{ "while", TokenType.WHILE } };
 
-    return std.ComptimeStringMap(TokenType, kvs);
+    return std.StaticStringMap(TokenType).initComptime(kvs);
 }
 
 const keywords = initKeywords();
@@ -16,12 +16,15 @@ const keywords = initKeywords();
 const Scanner = @This();
 
 source: []const u8,
-tokens: []*Token,
-tokensSize: usize = 0,
+tokens: std.ArrayList(*Token),
 start: u16 = 0,
 current: u16 = 0,
 line: u16 = 1,
 alloc: std.mem.Allocator = undefined,
+
+pub fn init(source: []const u8, alloc: std.mem.Allocator) Scanner {
+    return .{ .source = source, .alloc = alloc, .tokens = std.ArrayList(*Token).init(alloc) };
+}
 
 pub fn scanTokens(self: *Scanner) ![]*Token {
     while (!self.isAtEnd()) {
@@ -29,12 +32,10 @@ pub fn scanTokens(self: *Scanner) ![]*Token {
         try self.scanToken();
     }
 
-    var rs = self.createToken(TokenType.EOF, "", self.line);
-    std.debug.print("RS: {}\n", .{rs});
-    self.tokens[self.tokensSize] = rs;
-    // self.tokens[self.tokensSize] = self.createToken(TokenType.EOF, "", self.line);
-    self.tokensSize += 1;
-    return self.tokens;
+    const token = self.createToken(TokenType.EOF, "", self.line);
+    _ = try self.tokens.addOne();
+    try self.tokens.append(token);
+    return self.tokens.toOwnedSlice();
 }
 
 fn isAtEnd(self: *Scanner) bool {
@@ -42,35 +43,35 @@ fn isAtEnd(self: *Scanner) bool {
 }
 
 fn scanToken(self: *Scanner) !void {
-    var c: u8 = self.advance();
+    const c: u8 = self.advance();
     try switch (c) {
-        '(' => self.addToken(TokenType.LEFT_PAREN),
-        ')' => self.addToken(TokenType.RIGHT_PAREN),
-        '{' => self.addToken(TokenType.LEFT_BRACE),
-        '}' => self.addToken(TokenType.RIGHT_BRACE),
-        ',' => self.addToken(TokenType.COMMA),
-        '.' => self.addToken(TokenType.DOT),
-        '-' => self.addToken(TokenType.MINUS),
-        '+' => self.addToken(TokenType.PLUS),
-        ';' => self.addToken(TokenType.SEMICOLON),
-        '*' => self.addToken(TokenType.STAR),
-        '!' => self.addToken(if (self.match('=')) TokenType.BANG_EQUAL else TokenType.BANG),
-        '=' => self.addToken(if (self.match('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL),
-        '<' => self.addToken(if (self.match('=')) TokenType.LESS_EQUAL else TokenType.LESS),
-        '>' => self.addToken(if (self.match('=')) TokenType.GREATER_EQUAL else TokenType.GREATER),
+        '(' => try self.addToken(TokenType.LEFT_PAREN),
+        ')' => try self.addToken(TokenType.RIGHT_PAREN),
+        '{' => try self.addToken(TokenType.LEFT_BRACE),
+        '}' => try self.addToken(TokenType.RIGHT_BRACE),
+        ',' => try self.addToken(TokenType.COMMA),
+        '.' => try self.addToken(TokenType.DOT),
+        '-' => try self.addToken(TokenType.MINUS),
+        '+' => try self.addToken(TokenType.PLUS),
+        ';' => try self.addToken(TokenType.SEMICOLON),
+        '*' => try self.addToken(TokenType.STAR),
+        '!' => try self.addToken(if (self.match('=')) TokenType.BANG_EQUAL else TokenType.BANG),
+        '=' => try self.addToken(if (self.match('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL),
+        '<' => try self.addToken(if (self.match('=')) TokenType.LESS_EQUAL else TokenType.LESS),
+        '>' => try self.addToken(if (self.match('=')) TokenType.GREATER_EQUAL else TokenType.GREATER),
         '/' => if (self.match('/')) {
             while (self.peek() != '\n' and !self.isAtEnd()) {
                 _ = self.advance();
             }
-        } else self.addToken(TokenType.SLASH),
+        } else try self.addToken(TokenType.SLASH),
         ' ', '\r', '\t' => {},
         '\n' => self.line += 1,
         '"' => self.string(),
         '\'' => self.char(),
         else => if (self.isDigit(c)) {
-            self.number();
+            try self.number();
         } else if (self.isAlpha(c)) {
-            self.identifier();
+            try self.identifier();
         } else Logger.report(self.*.alloc, self.*.line, "", "Unexpected character."),
     };
 }
@@ -81,16 +82,16 @@ fn char(self: *Scanner) !void {
     if (self.isAlphaNumeric(self.peek()) and !self.isAlphaNumeric(self.peekNext())) {
         _ = self.advance();
         _ = self.advance();
-        self.addToken(TokenType.CHAR);
+        try self.addToken(TokenType.CHAR);
     } else Logger.report(self.alloc, self.line, "", "Invalid char");
 }
 
-fn identifier(self: *Scanner) void {
+fn identifier(self: *Scanner) !void {
     while (self.isAlphaNumeric(self.peek())) _ = self.advance();
-    var text = self.source[self.start..self.current];
+    const text = self.source[self.start..self.current];
     var tokenType: ?TokenType = keywords.get(text);
     if (tokenType == null) tokenType = TokenType.IDENTIFIER;
-    self.addToken(tokenType.?);
+    try self.addToken(tokenType.?);
 }
 
 fn isAlphaNumeric(self: *Scanner, c: u8) bool {
@@ -107,14 +108,14 @@ fn isDigit(self: *Scanner, c: u8) bool {
     return c >= '0' and c <= '9';
 }
 
-fn number(self: *Scanner) void {
+fn number(self: *Scanner) !void {
     while (self.isDigit(self.peek())) _ = self.advance();
 
     if (self.peek() == '.' and self.isDigit(self.peekNext())) {
         _ = self.advance();
         while (self.isDigit(self.peek())) _ = self.advance();
     }
-    self.addToken(TokenType.NUMBER);
+    try self.addToken(TokenType.NUMBER);
 }
 
 fn peekNext(self: *Scanner) u8 {
@@ -136,7 +137,7 @@ fn string(self: *Scanner) !void {
 
         // Trim the surrounding quotes.
         // var value = self.source[self.start + 1 .. self.current - 1];
-        self.addToken(TokenType.STRING);
+        try self.addToken(TokenType.STRING);
     }
 }
 
@@ -146,21 +147,18 @@ fn peek(self: *Scanner) u8 {
 }
 
 fn advance(self: *Scanner) u8 {
-    var current = self.*.source[self.*.current];
+    const current = self.*.source[self.*.current];
     self.*.current += 1;
     return current;
 }
 
-fn addToken(self: *Scanner, tokenType: TokenType) void {
-    var text = self.*.source[self.*.start..self.*.current];
+fn addToken(self: *Scanner, tokenType: TokenType) !void {
+    const text = self.*.source[self.*.start..self.*.current];
 
-    var rs = self.createToken(tokenType, text, self.*.line);
-    std.debug.print("RS: {&} TYPE: {}\n", .{ &rs, @TypeOf(rs) });
-    std.debug.print("INDEX {}\n", .{self.*.tokensSize});
-    self.*.tokens[self.*.tokensSize] = rs;
-    std.debug.print("SIZE = {}\n", .{self.*.tokensSize});
-    // self.tokens[self.tokensSize] = self.createToken(tokenType, text, self.line);
-    self.tokensSize += 1;
+    const rs = self.createToken(tokenType, text, self.*.line);
+    // std.debug.print("RS: {any} TYPE: {}\n", .{ rs, @TypeOf(rs) });
+    _ = try self.tokens.addOne();
+    try self.tokens.append(rs);
 }
 
 fn match(self: *Scanner, expected: u8) bool {
@@ -171,17 +169,17 @@ fn match(self: *Scanner, expected: u8) bool {
 }
 
 fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16) *Token {
-    std.debug.print("TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
+    std.debug.print("CREATE TOKEN TYPE = {}, text = `{s}`, line = {}\n", .{ tokenType, text, line });
     return self.createLiteralToken(tokenType, text, line, null);
 }
 
 fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16, literal: ?Object) *Token {
-    var token: *Token = self.alloc.create(Token) catch |e| {
-        std.debug.print("Error creating Token: {}", .{e});
+    const token: *Token = self.alloc.create(Token) catch |e| {
+        std.debug.print("Error creating Token: {!}", .{e});
         @panic("Error allocating token");
     };
 
-    std.debug.print("TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
+    std.debug.print("LITERAL TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
     token.*.tokenType = tokenType;
     token.*.lexer = "lexer";
     token.*.line = 12;

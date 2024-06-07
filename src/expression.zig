@@ -13,10 +13,10 @@ pub const Expr = struct {
 
     pub const Self = @This();
 
-    pub fn initBinary(allocator: Allocator, op: token.Token, left: *Expr, right: *Expr) *Expr {
+    pub fn initBinary(allocator: Allocator, op: token.Token, left: *Expr, right: *Expr) !*Expr {
         var expr = allocator.create(Expr) catch |e| {
-            std.debug.print("Error {}", .{e});
-            std.os.exit(64);
+            std.log.err("Error {!}", .{e});
+            return error.InitializingExpression;
         };
 
         expr.tag = ExprType.binary;
@@ -26,10 +26,10 @@ pub const Expr = struct {
         return expr;
     }
 
-    pub fn initLiteral(allocator: Allocator, valueString: []const u8, value: *Object) *Expr {
+    pub fn initLiteral(allocator: Allocator, valueString: []const u8, value: *Object) !*Expr {
         var expr = allocator.create(Expr) catch |e| {
-            std.debug.print("Error {}", .{e});
-            std.os.exit(64);
+            std.log.err("Error {!}", .{e});
+            return error.InitializingLiteral;
         };
         expr.tag = ExprType.literal;
         expr.valueString = valueString;
@@ -37,20 +37,20 @@ pub const Expr = struct {
         return expr;
     }
 
-    pub fn initGrouping(allocator: Allocator, group: *Expr) *@This() {
+    pub fn initGrouping(allocator: Allocator, group: *Expr) !*@This() {
         var expr = allocator.create(Expr) catch |e| {
-            std.debug.print("Error {}", .{e});
-            std.os.exit(64);
+            std.log.err("Error {!}", .{e});
+            return error.InitializingGrouping;
         };
         expr.tag = ExprType.grouping;
         expr.expression = group;
         return expr;
     }
 
-    pub fn initUnary(allocator: Allocator, right: *Expr, op: token.Token) *@This() {
+    pub fn initUnary(allocator: Allocator, right: *Expr, op: token.Token) !*@This() {
         var expr = allocator.create(Expr) catch |e| {
-            std.debug.print("Error {}", .{e});
-            std.os.exit(64);
+            std.log.err("Error {!}", .{e});
+            return error.InitializingUnary;
         };
         expr.tag = ExprType.unary;
         expr.operator = op;
@@ -58,7 +58,7 @@ pub const Expr = struct {
         return expr;
     }
 
-    pub fn accept(this: *Expr, visitor: anytype, comptime T: type) T {
+    pub fn accept(this: *Expr, visitor: anytype, comptime T: type) !T {
         return switch (this.tag) {
             .binary => visitor.visitBinary(this),
             .unary => visitor.visitUnary(this),
@@ -76,27 +76,27 @@ pub const Object = union(ObjectType) {
     float: f64,
     boolean: bool,
 
-    pub fn init(allocator: Allocator) *Object {
+    pub fn init(allocator: Allocator) !*Object {
         return allocator.create(Object) catch |e| {
-            std.debug.print("Error {}", .{e});
-            std.os.exit(64);
+            std.log.err("Error {!}", .{e});
+            return error.InitializingObject;
         };
     }
 
-    pub fn initBool(allocator: Allocator, boolean: bool) *Object {
-        var obj = Object.init(allocator);
+    pub fn initBool(allocator: Allocator, boolean: bool) !*Object {
+        var obj = try Object.init(allocator);
         obj.boolean = boolean;
         return obj;
     }
 
-    pub fn initFloat(allocator: Allocator, float: f64) *Object {
-        var obj = Object.init(allocator);
+    pub fn initFloat(allocator: Allocator, float: f64) !*Object {
+        var obj = try Object.init(allocator);
         obj.float = float;
         return obj;
     }
 
-    pub fn initString(allocator: Allocator, string: []const u8) *Object {
-        var obj = Object.init(allocator);
+    pub fn initString(allocator: Allocator, string: []const u8) !*Object {
+        var obj = try Object.init(allocator);
         obj.string = string;
         return obj;
     }

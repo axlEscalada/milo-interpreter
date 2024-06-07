@@ -10,8 +10,8 @@ pub const Token = struct {
 };
 
 pub fn createToken(alloc: Allocator, tokenType: TokenType, text: []const u8, line: u16) *Token {
-    var token: *Token = alloc.create(Token) catch |e| {
-        std.debug.print("Error creating Token: {}", .{e});
+    const token: *Token = alloc.create(Token) catch |e| {
+        std.debug.print("Error creating Token: {!}", .{e});
         @panic("Error allocating token");
     };
 

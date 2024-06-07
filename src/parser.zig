@@ -12,85 +12,121 @@ current: usize = 0,
 tokens: []*Token,
 allocator: Allocator,
 
-pub fn expression(self: *Parser) *Expr {
-    return self.equality();
+pub fn expression(self: *Parser) ParserError!*Expr {
+    return self.equality() catch |e| {
+        std.log.err("Error parsing expression {!}\n", .{e});
+        return ParserError.ParsingExpression;
+    };
 }
 
-fn equality(self: *Parser) *Expr {
-    var expr = self.comparison();
+fn equality(self: *Parser) ParserError!*Expr {
+    var expr = self.comparison() catch |e| {
+        return e;
+    };
 
     var tokenTypes = [2]TokenType{ TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL };
     while (self.match(&tokenTypes)) {
         const operator = self.previous();
-        var right = self.comparison();
-        expr = Expr.initBinary(self.allocator, operator, expr, right);
+        const right = self.comparison() catch |e| {
+            std.log.err("Error parsing equality {!}\n", .{e});
+            return e;
+        };
+        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+            std.log.err("Error parsing binary {!}\n", .{e});
+            return ParserError.ParsingBinary;
+        };
     }
     return expr;
 }
 
-fn comparison(self: *Parser) *Expr {
-    var expr = self.term();
+fn comparison(self: *Parser) ParserError!*Expr {
+    var expr = self.term() catch |e| {
+        std.log.err("Error parsing comparison {!}\n", .{e});
+        return e;
+    };
     var tokenTypes = [4]TokenType{ TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL };
     while (self.match(&tokenTypes)) {
         const operator = self.previous();
-        var right = self.term();
-        expr = Expr.initBinary(self.allocator, operator, expr, right);
+        const right = self.term() catch |e| return e;
+        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+            std.log.err("Error parsing binary {!}\n", .{e});
+            return ParserError.ParsingBinary;
+        };
     }
     return expr;
 }
 
-fn term(self: *Parser) *Expr {
-    var expr = self.factor();
+fn term(self: *Parser) ParserError!*Expr {
+    var expr = self.factor() catch |e| return e;
     var tokenTypes = [2]TokenType{ TokenType.MINUS, TokenType.PLUS };
     while (self.match(&tokenTypes)) {
         const operator = self.previous();
-        var right = self.factor();
-        expr = Expr.initBinary(self.allocator, operator, expr, right);
+        const right = self.factor() catch |e| return e;
+        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+            std.log.err("Error parsing binary {!}\n", .{e});
+            return ParserError.ParsingBinary;
+        };
     }
     return expr;
 }
 
-fn factor(self: *Parser) *Expr {
-    var expr = self.unary();
+fn factor(self: *Parser) ParserError!*Expr {
+    var expr = self.unary() catch |e| return e;
     var tokenTypes = [2]TokenType{ TokenType.STAR, TokenType.SLASH };
     while (self.match(&tokenTypes)) {
         const operator = self.previous();
-        var right = self.unary();
-        expr = Expr.initBinary(self.allocator, operator, expr, right);
+        const right = self.unary() catch |e| return e;
+        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+            std.log.err("Error parsing binary {!}\n", .{e});
+            return ParserError.ParsingBinary;
+        };
     }
     return expr;
 }
 
-fn unary(self: *Parser) *Expr {
+fn unary(self: *Parser) ParserError!*Expr {
     var tokenTypes = [2]TokenType{ TokenType.BANG, TokenType.LESS };
     if (self.match(&tokenTypes)) {
-        var operator = self.previous();
-        var right = self.unary();
-        return Expr.initUnary(self.allocator, right, operator);
+        const operator = self.previous();
+        const right = self.unary() catch |e| return e;
+        return Expr.initUnary(self.allocator, right, operator) catch |e| {
+            std.log.err("Error parsing unary {!}\n", .{e});
+            return ParserError.ParsingUnary;
+        };
     }
     return self.primary();
 }
 
-fn primary(self: *Parser) *Expr {
+fn primary(self: *Parser) ParserError!*Expr {
     var tokenTypes = [_]TokenType{ TokenType.STRING, TokenType.NUMBER, TokenType.NIL, TokenType.TRUE, TokenType.FALSE };
     if (self.matchType(&tokenTypes)) |tokenType| {
-        return Expr.initLiteral(self.allocator, self.peek().lexer, self.createLiteral(tokenType, self.peek().lexer));
+        const literal = self.createLiteral(tokenType, self.peek().lexer) catch |e| {
+            std.log.err("Error parsing primary {!}\n", .{e});
+            return ParserError.ParsingLiteral;
+        };
+        return Expr.initLiteral(self.allocator, self.peek().lexer, literal) catch |e| {
+            std.log.err("Error parsing literal {!}\n", .{e});
+            return ParserError.ParsingLiteral;
+        };
     }
     var parType = [1]TokenType{TokenType.LEFT_PAREN};
     if (self.match(&parType)) {
-        var expr = self.expression();
+        const expr = self.expression() catch |e| return e;
         _ = self.consume(TokenType.RIGHT_PAREN, "Expr ')' after expression");
-        return Expr.initGrouping(self.allocator, expr);
+        return Expr.initGrouping(self.allocator, expr) catch |e| {
+            std.log.err("Error parsing primary {!}\n", .{e});
+            return ParserError.ParsingPrimary;
+        };
     }
     @panic("Can't close parenthesis");
 }
 
-fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) *Object {
+fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*Object {
     return switch (tokenType) {
-        .STRING => return Object.initString(self.allocator, lexer),
-        .FALSE => return Object.initBool(self.allocator, false),
-        .TRUE => return Object.initBool(self.allocator, true),
-        .NUMBER => return Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch @panic("Error parsing float")),
+        .STRING => return try Object.initString(self.allocator, lexer),
+        .FALSE => return try Object.initBool(self.allocator, false),
+        .TRUE => return try Object.initBool(self.allocator, true),
+        .NUMBER => return try Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch @panic("Error parsing float")),
         else => unreachable,
     };
 }
@@ -146,4 +182,9 @@ fn previous(self: *Parser) Token {
 
 const ParserError = error{
     NotClosingParenthesisError,
+    ParsingExpression,
+    ParsingLiteral,
+    ParsingUnary,
+    ParsingBinary,
+    ParsingPrimary,
 };

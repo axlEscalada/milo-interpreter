@@ -12,7 +12,7 @@ pub const Interpreter = struct {
     }
 
     pub fn visitUnaryExpr(self: *Interpreter, expr: *Expr) *Object {
-        var right = self.evaluate(expr.right);
+        const right = self.evaluate(expr.right);
 
         return switch (expr.operator.?.tokenType) {
             .BANG => !self.isTruthy(right),
@@ -37,13 +37,13 @@ pub const Interpreter = struct {
 pub const AstPrinter = struct {
     allocator: Allocator,
 
-    pub fn print(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn print(this: *AstPrinter, expr: *Expr) ![]const u8 {
         return expr.accept(this, []const u8);
     }
 
-    pub fn visitBinary(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn visitBinary(this: *AstPrinter, expr: *Expr) ![]const u8 {
         var expressions = [_]*Expr{ expr.left.?, expr.right.? };
-        return this.parenthesize(expr.operator.?.lexer, &expressions);
+        return try this.parenthesize(expr.operator.?.lexer, &expressions);
     }
 
     pub fn visitLiteral(this: *AstPrinter, expr: *Expr) []const u8 {
@@ -53,31 +53,30 @@ pub const AstPrinter = struct {
         } else return "nil";
     }
 
-    pub fn visitUnary(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn visitUnary(this: *AstPrinter, expr: *Expr) ![]const u8 {
         var expressions = [_]*Expr{expr.right.?};
-        return this.parenthesize(expr.operator.?.lexer, &expressions);
+        return try this.parenthesize(expr.operator.?.lexer, &expressions);
     }
 
-    pub fn visitGrouping(this: *AstPrinter, expr: *Expr) []const u8 {
+    pub fn visitGrouping(this: *AstPrinter, expr: *Expr) ![]const u8 {
         var expressions = [_]*Expr{expr.expression.?};
-        return this.parenthesize("group", &expressions);
+        return try this.parenthesize("group", &expressions);
     }
 
-    fn parenthesize(this: *AstPrinter, name: []const u8, expres: []*Expr) []const u8 {
-        // std.debug.print("{} AND POINTEr {}", .{ this.allocator, &this.allocator });
+    fn parenthesize(this: *AstPrinter, name: []const u8, expres: []*Expr) ![]const u8 {
         var builder: []const u8 = std.fmt.allocPrint(this.allocator, "({s}", .{name}) catch |e| {
-            std.debug.print("Error {}", .{e});
-            std.os.exit(64);
+            std.log.err("Error while allocating parenthesis {!}\n", .{e});
+            return error.AllocationError;
         };
         for (expres) |expr| {
-            builder = std.fmt.allocPrint(this.allocator, "{s} {s}", .{ builder, expr.accept(this, []const u8) }) catch |e| {
-                std.debug.print("Error {}", .{e});
-                std.os.exit(64);
+            builder = std.fmt.allocPrint(this.allocator, "{s} {any}", .{ builder, expr.accept(this, []const u8) }) catch |e| {
+                std.log.err("Error while parenthesize {!}\n", .{e});
+                return error.AllocationError;
             };
         }
         builder = std.fmt.allocPrint(this.allocator, "{s})", .{builder}) catch |e| {
-            std.debug.print("Error {}", .{e});
-            std.os.exit(64);
+            std.log.err("Error while parenthesize {!}\n", .{e});
+            return error.AllocationError;
         };
         return builder;
     }
