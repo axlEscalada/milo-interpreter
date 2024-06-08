@@ -25,10 +25,11 @@ This is the front end.
 Intermediate representation (IR) acts an interface between the source code and the destination forms.
 This let you support multiple source languages and target platforms with less effort.
 For example we can write one front end for each source that produces the IR, then one back end for each target architecure.
-
-JAVA | | x86
-C | IR | ARM
-GO | |
+| Lang | IR | Arch   |
+|------|----|--------|
+| Java |    | x86    |
+| C    | IR | ARM    |
+| Go   |    | x86_64 |
 
 ## Optimization
 
