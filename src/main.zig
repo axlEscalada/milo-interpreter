@@ -7,6 +7,8 @@ const Allocator = std.mem.Allocator;
 const Interpreter = @import("interpreter.zig").Intrepreter;
 const AstPrinter = @import("interpreter.zig").AstPrinter;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
+const Expr = @import("expression.zig").Expr;
+const Object = @import("expression.zig").Object;
 var hadError = false;
 
 // pub fn main() !void {
@@ -17,15 +19,16 @@ var hadError = false;
 //     defer arena_instance.deinit();
 //     allocator = arena_instance.allocator();
 //
-//     var nm: []const u8 = "123";
-//     var lit = Expr.initLiteral(nm);
+//     const nm: []const u8 = "123";
+//     const obj = try Object.initString(allocator, nm);
+//     var lit = Expr.initLiteral(allocator, nm, obj);
 //     var unary = Expr.initUnary(&lit, Token{ .tokenType = TokenType.MINUS, .lexer = "-", .line = 1 });
-//     var token = .{ .tokenType = TokenType.STAR, .lexer = "*", .line = 1 };
+//     const token = .{ .tokenType = TokenType.STAR, .lexer = "*", .line = 1 };
 //     var otherLit = Expr.initLiteral("45.67");
 //     var grouping = Expr.initGrouping(&otherLit);
 //     var expression = Expr.initBinary(token, &unary, &grouping);
 //     var astPrinter: AstPrinter = .{ .allocator = allocator };
-//     var result = astPrinter.print(&expression);
+//     const result = astPrinter.print(&expression);
 //     std.debug.print("{s}", .{result});
 // }
 
@@ -58,26 +61,30 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
     while (true) {
         _ = try stdout.write(">> ");
         line = try stdin.readUntilDelimiterOrEof(&buffer, '\n') orelse "";
+        defer line = undefined;
         if (std.mem.eql(u8, line, "exit")) std.process.exit(0);
 
         var scanner = Scanner.init(line, alloc);
-        const rs = try scanner.scanTokens();
-        var parser = Parser{ .tokens = rs, .allocator = alloc };
-        var astPrinter = AstPrinter{ .allocator = alloc };
+        defer scanner.deinit();
+
+        const tokens = try scanner.scanTokens();
+        var parser = Parser.init(tokens, alloc);
+        // var astPrinter = AstPrinter{ .allocator = alloc };
         const expr = parser.expression() catch |e| {
             std.log.err("Error while parsing prompt {any}\n", .{e});
             return error.Prompt;
         };
-        if (!hadError) {
-            _ = astPrinter.print(expr) catch |e| return e;
-            // std.debug.print("{s}\n", .{resultPrint});
-            for (rs[0..]) |*r| {
-                if (r.*.tokenType == TokenType.EOF) break;
-                const final_url = try std.fmt.allocPrint(alloc, "Token: `{s}` Type: {}\n", .{ r.*.lexer, r.*.tokenType });
-                defer alloc.free(final_url);
-                _ = try stdout.write(final_url);
-            }
-        }
+        std.debug.print("Expr {any}\n", .{expr});
+        // if (!hadError) {
+        //     _ = astPrinter.print(expr) catch |e| return e;
+        //     // std.debug.print("{s}\n", .{resultPrint});
+        //     for (tokens[0..]) |*r| {
+        //         if (r.*.tokenType == TokenType.EOF) break;
+        //         const final_url = try std.fmt.allocPrint(alloc, "Token: `{s}` Type: {}\n", .{ r.*.lexer, r.*.tokenType });
+        //         defer alloc.free(final_url);
+        //         _ = try stdout.write(final_url);
+        //     }
+        // }
 
         hadError = false;
     }

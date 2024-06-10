@@ -9,8 +9,16 @@ const Logger = @import("logger.zig");
 pub const Parser = @This();
 
 current: usize = 0,
-tokens: []*Token,
+tokens: std.ArrayList(*Token),
 allocator: Allocator,
+
+pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
+    std.debug.print("Tokens parser {any}\n", .{tokens});
+    return .{
+        .tokens = tokens,
+        .allocator = allocator,
+    };
+}
 
 pub fn expression(self: *Parser) ParserError!*Expr {
     return self.equality() catch |e| {
@@ -121,7 +129,8 @@ fn primary(self: *Parser) ParserError!*Expr {
     @panic("Can't close parenthesis");
 }
 
-fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*Object {
+pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*Object {
+    std.debug.print("LEXER IS {s}\n", .{lexer});
     return switch (tokenType) {
         .STRING => return try Object.initString(self.allocator, lexer),
         .FALSE => return try Object.initBool(self.allocator, false),
@@ -173,11 +182,12 @@ fn isAtEnd(self: *Parser) bool {
 }
 
 fn peek(self: *Parser) Token {
-    return self.tokens[self.current].*;
+    std.debug.print("PEEK IS {any}\n", .{self.tokens.items[self.current].tokenType});
+    return self.tokens.items[self.current].*;
 }
 
 fn previous(self: *Parser) Token {
-    return self.tokens[self.current - 1].*;
+    return self.tokens.items[self.current - 1].*;
 }
 
 const ParserError = error{

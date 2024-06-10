@@ -26,16 +26,22 @@ pub fn init(source: []const u8, alloc: std.mem.Allocator) Scanner {
     return .{ .source = source, .alloc = alloc, .tokens = std.ArrayList(*Token).init(alloc) };
 }
 
-pub fn scanTokens(self: *Scanner) ![]*Token {
+pub fn deinit(self: *Scanner) void {
+    self.tokens.deinit();
+}
+
+pub fn scanTokens(self: *Scanner) !std.ArrayList(*Token) {
     while (!self.isAtEnd()) {
         self.start = self.*.current;
         try self.scanToken();
     }
 
     const token = self.createToken(TokenType.EOF, "", self.line);
-    _ = try self.tokens.addOne();
     try self.tokens.append(token);
-    return self.tokens.toOwnedSlice();
+    for (self.tokens.items) |t| {
+        std.debug.print("ITEMS: {s}\n", .{t.lexer});
+    }
+    return self.tokens;
 }
 
 fn isAtEnd(self: *Scanner) bool {
@@ -155,10 +161,8 @@ fn advance(self: *Scanner) u8 {
 fn addToken(self: *Scanner, tokenType: TokenType) !void {
     const text = self.*.source[self.*.start..self.*.current];
 
-    const rs = self.createToken(tokenType, text, self.*.line);
-    // std.debug.print("RS: {any} TYPE: {}\n", .{ rs, @TypeOf(rs) });
-    _ = try self.tokens.addOne();
-    try self.tokens.append(rs);
+    const token = self.createToken(tokenType, text, self.*.line);
+    try self.tokens.append(token);
 }
 
 fn match(self: *Scanner, expected: u8) bool {
@@ -169,7 +173,7 @@ fn match(self: *Scanner, expected: u8) bool {
 }
 
 fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16) *Token {
-    std.debug.print("CREATE TOKEN TYPE = {}, text = `{s}`, line = {}\n", .{ tokenType, text, line });
+    // std.debug.print("CREATE TOKEN TYPE = {}, text = `{s}`, line = {}\n", .{ tokenType, text, line });
     return self.createLiteralToken(tokenType, text, line, null);
 }
 
@@ -181,8 +185,9 @@ fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, li
 
     std.debug.print("LITERAL TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
     token.*.tokenType = tokenType;
-    token.*.lexer = "lexer";
-    token.*.line = 12;
+    // token.*.lexer = "lexer";
+    token.*.lexer = text;
+    token.*.line = line;
     token.*.literal = literal;
     return token;
 }
