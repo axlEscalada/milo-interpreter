@@ -13,7 +13,10 @@ tokens: std.ArrayList(*Token),
 allocator: Allocator,
 
 pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
-    std.debug.print("Tokens parser {any}\n", .{tokens});
+    // std.debug.print("Tokens parser {any}\n", .{tokens});
+    for (tokens.items) |t| {
+        std.debug.print("Parser {s} and type {any}\n", .{ t.lexer, t.tokenType });
+    }
     return .{
         .tokens = tokens,
         .allocator = allocator,
@@ -107,8 +110,8 @@ fn unary(self: *Parser) ParserError!*Expr {
 
 fn primary(self: *Parser) ParserError!*Expr {
     var tokenTypes = [_]TokenType{ TokenType.STRING, TokenType.NUMBER, TokenType.NIL, TokenType.TRUE, TokenType.FALSE };
-    if (self.matchType(&tokenTypes)) |tokenType| {
-        const literal = self.createLiteral(tokenType, self.peek().lexer) catch |e| {
+    if (self.matchType(&tokenTypes)) |token| {
+        const literal = self.createLiteral(token.tokenType, token.lexer) catch |e| {
             std.log.err("Error parsing primary {!}\n", .{e});
             return ParserError.ParsingLiteral;
         };
@@ -129,8 +132,8 @@ fn primary(self: *Parser) ParserError!*Expr {
     @panic("Can't close parenthesis");
 }
 
-pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*Object {
-    std.debug.print("LEXER IS {s}\n", .{lexer});
+pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !Object {
+    std.debug.print("LEXER IS {s} AND TYPE {any}\n", .{ lexer, tokenType });
     return switch (tokenType) {
         .STRING => return try Object.initString(self.allocator, lexer),
         .FALSE => return try Object.initBool(self.allocator, false),
@@ -138,6 +141,9 @@ pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*O
         .NUMBER => return try Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch @panic("Error parsing float")),
         else => unreachable,
     };
+    // const s = try self.allocator.create(Object);
+    // s.* = obj;
+    // return obj;
 }
 
 fn consume(self: *Parser, tokenType: TokenType, msg: []const u8) Token {
@@ -157,11 +163,12 @@ fn match(self: *Parser, types: []TokenType) bool {
     return false;
 }
 
-fn matchType(self: *Parser, types: []TokenType) ?TokenType {
+fn matchType(self: *Parser, types: []TokenType) ?Token {
     for (types) |tp| {
         if (self.check(tp)) {
+            const token = self.peek();
             _ = self.advance();
-            return tp;
+            return token;
         }
     }
     return null;
@@ -182,7 +189,7 @@ fn isAtEnd(self: *Parser) bool {
 }
 
 fn peek(self: *Parser) Token {
-    std.debug.print("PEEK IS {any}\n", .{self.tokens.items[self.current].tokenType});
+    std.debug.print("PEEK IS `{s}` {any}\n", .{ self.tokens.items[self.current].lexer, self.tokens.items[self.current].tokenType });
     return self.tokens.items[self.current].*;
 }
 

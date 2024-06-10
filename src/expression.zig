@@ -8,7 +8,7 @@ pub const Expr = struct {
     left: ?*Expr = null,
     right: ?*Expr = null,
     valueString: ?[]const u8 = null,
-    value: ?*Object = null,
+    value: ?Object = null,
     tag: ExprType,
 
     pub const Self = @This();
@@ -26,7 +26,7 @@ pub const Expr = struct {
         return expr;
     }
 
-    pub fn initLiteral(allocator: Allocator, valueString: []const u8, value: *Object) !*Expr {
+    pub fn initLiteral(allocator: Allocator, valueString: []const u8, value: Object) !*Expr {
         var expr = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingLiteral;
@@ -72,9 +72,9 @@ pub const Expr = struct {
 pub const ExprType = enum { binary, unary, literal, grouping, err };
 pub const ObjectType = enum { string, float, boolean };
 pub const Object = union(ObjectType) {
-    string: []const u8,
-    float: f64,
-    boolean: bool,
+    string: *[]const u8,
+    float: *f64,
+    boolean: *bool,
 
     pub fn init(allocator: Allocator) !*Object {
         return allocator.create(Object) catch |e| {
@@ -83,21 +83,31 @@ pub const Object = union(ObjectType) {
         };
     }
 
-    pub fn initBool(allocator: Allocator, boolean: bool) !*Object {
-        var obj = try Object.init(allocator);
-        obj.boolean = boolean;
-        return obj;
+    fn Type(comptime field: anytype) type {
+        return @typeInfo(std.meta.fieldInfo(Object, field).type).Pointer.child;
     }
 
-    pub fn initFloat(allocator: Allocator, float: f64) !*Object {
-        var obj = try Object.init(allocator);
-        obj.float = float;
-        return obj;
+    pub fn initBool(allocator: Allocator, boolean: bool) !Object {
+        const obj = try allocator.create(bool);
+        obj.* = boolean;
+        // var obj = try Object.init(allocator);
+        // obj.string = string;
+        return Object{ .boolean = obj };
     }
 
-    pub fn initString(allocator: Allocator, string: []const u8) !*Object {
-        var obj = try Object.init(allocator);
-        obj.string = string;
-        return obj;
+    pub fn initFloat(allocator: Allocator, float: f64) !Object {
+        const obj = try allocator.create(f64);
+        obj.* = float;
+        // var obj = try Object.init(allocator);
+        // obj.string = string;
+        return Object{ .float = obj };
+    }
+
+    pub fn initString(allocator: Allocator, string: []const u8) !Object {
+        const obj = try allocator.create([]const u8);
+        obj.* = string;
+        // var obj = try Object.init(allocator);
+        // obj.string = string;
+        return Object{ .string = obj };
     }
 };
