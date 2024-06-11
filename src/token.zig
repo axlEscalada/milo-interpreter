@@ -7,6 +7,12 @@ pub const Token = struct {
     lexer: []const u8 = undefined,
     line: u16 = undefined,
     literal: ?Object = null,
+
+    pub fn init(allocator: Allocator, tokenType: TokenType, lexer: []const u8, line: u16, literal: ?Object) !*Token {
+        const token = try allocator.create(Token);
+        token.* = .{ .tokenType = tokenType, .lexer = lexer, .line = line, .literal = literal };
+        return token;
+    }
 };
 
 pub fn createToken(alloc: Allocator, tokenType: TokenType, text: []const u8, line: u16) *Token {

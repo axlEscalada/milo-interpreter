@@ -2,8 +2,72 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const token = @import("token.zig");
 
+pub const Expression = struct {
+    ptr: *anyopaque,
+    expr_type: ExprType,
+    accept: fn (*anyopaque, anytype, anytype) type,
+
+    pub fn init(pointer: anytype) Expression {
+        const Ptr = @TypeOf(pointer);
+        const ptr_info = @typeInfo(Ptr);
+
+        std.debug.assert(ptr_info == .Pointer);
+        std.debug.assert(ptr_info.Pointer.size == .One);
+
+        // const alignment = ptr_info.Pointer.alignment;
+
+        const gen = struct {
+            fn accept(ptr: *anyopaque, s: anytype, t: anytype) @TypeOf(t) {
+                const self: Ptr = @ptrCast(@alignCast(ptr));
+                return @call(.{ .modifier = .always_inline }, ptr_info.Pointer.child.next, .{ self, s, t });
+            }
+        };
+
+        return .{
+            .ptr = pointer,
+            .accept = &gen.accept,
+        };
+    }
+};
+
+pub const Binary = struct {
+    operator: token.Token,
+    left: *Expression,
+    right: *Expression,
+
+    fn accept(self: *Binary, visitor: anytype, comptime T: type) T {
+        visitor.visitBinary(self);
+    }
+};
+
+pub const Literal = struct {
+    value_string: []const u8,
+    value: Object,
+
+    fn accept(self: *Literal, visitor: anytype, comptime T: type) T {
+        visitor.visitLiteral(self);
+    }
+};
+
+pub const Grouping = struct {
+    expression: *Expression,
+
+    fn accept(self: *Grouping, visitor: anytype, comptime T: type) T {
+        visitor.visitLiteral(self);
+    }
+};
+
+pub const Unary = struct {
+    operator: token.Token,
+    right: *Expression,
+
+    fn accept(self: *Unary, visitor: anytype, comptime T: type) T {
+        visitor.visitLiteral(self);
+    }
+};
+
 pub const Expr = struct {
-    operator: ?token.Token = null,
+    operator: ?*token.Token = null,
     expression: ?*Expr = null,
     left: ?*Expr = null,
     right: ?*Expr = null,
@@ -13,7 +77,8 @@ pub const Expr = struct {
 
     pub const Self = @This();
 
-    pub fn initBinary(allocator: Allocator, op: token.Token, left: *Expr, right: *Expr) !*Expr {
+    pub fn initBinary(allocator: Allocator, op: *token.Token, left: *Expr, right: *Expr) !*Expr {
+        // std.debug.print("Left {s} Right {s}\n", .{ left.valueString.?, right.valueString.? });
         var expr = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingExpression;
@@ -27,17 +92,16 @@ pub const Expr = struct {
     }
 
     pub fn initLiteral(allocator: Allocator, valueString: []const u8, value: Object) !*Expr {
-        var expr = allocator.create(Expr) catch |e| {
+        // std.debug.print("Expr VALUE STRING {s}\n", .{valueString});
+        const expr = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingLiteral;
         };
-        expr.tag = ExprType.literal;
-        expr.valueString = valueString;
-        expr.value = value;
+        expr.* = .{ .tag = ExprType.literal, .valueString = valueString, .value = value, .operator = null };
         return expr;
     }
 
-    pub fn initGrouping(allocator: Allocator, group: *Expr) !*@This() {
+    pub fn initGrouping(allocator: Allocator, group: *Expr) !*Expr {
         var expr = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingGrouping;
@@ -47,7 +111,7 @@ pub const Expr = struct {
         return expr;
     }
 
-    pub fn initUnary(allocator: Allocator, right: *Expr, op: token.Token) !*@This() {
+    pub fn initUnary(allocator: Allocator, right: *Expr, op: *token.Token) !*Expr {
         var expr = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingUnary;
@@ -106,8 +170,6 @@ pub const Object = union(ObjectType) {
     pub fn initString(allocator: Allocator, string: []const u8) !Object {
         const obj = try allocator.create([]const u8);
         obj.* = string;
-        // var obj = try Object.init(allocator);
-        // obj.string = string;
         return Object{ .string = obj };
     }
 };

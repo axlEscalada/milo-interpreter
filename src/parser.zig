@@ -14,9 +14,9 @@ allocator: Allocator,
 
 pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
     // std.debug.print("Tokens parser {any}\n", .{tokens});
-    for (tokens.items) |t| {
-        std.debug.print("Parser {s} and type {any}\n", .{ t.lexer, t.tokenType });
-    }
+    // for (tokens.items) |t| {
+    //     std.debug.print("Parser {s} and type {any}\n", .{ t.lexer, t.tokenType });
+    // }
     return .{
         .tokens = tokens,
         .allocator = allocator,
@@ -24,10 +24,12 @@ pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
 }
 
 pub fn expression(self: *Parser) ParserError!*Expr {
-    return self.equality() catch |e| {
+    const expr = self.equality() catch |e| {
         std.log.err("Error parsing expression {!}\n", .{e});
         return ParserError.ParsingExpression;
     };
+    // std.debug.print("Expr is {any}\n", .{expr});
+    return expr;
 }
 
 fn equality(self: *Parser) ParserError!*Expr {
@@ -115,10 +117,11 @@ fn primary(self: *Parser) ParserError!*Expr {
             std.log.err("Error parsing primary {!}\n", .{e});
             return ParserError.ParsingLiteral;
         };
-        return Expr.initLiteral(self.allocator, self.peek().lexer, literal) catch |e| {
+        const expr = Expr.initLiteral(self.allocator, token.lexer, literal) catch |e| {
             std.log.err("Error parsing literal {!}\n", .{e});
             return ParserError.ParsingLiteral;
         };
+        return expr;
     }
     var parType = [1]TokenType{TokenType.LEFT_PAREN};
     if (self.match(&parType)) {
@@ -133,7 +136,6 @@ fn primary(self: *Parser) ParserError!*Expr {
 }
 
 pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !Object {
-    std.debug.print("LEXER IS {s} AND TYPE {any}\n", .{ lexer, tokenType });
     return switch (tokenType) {
         .STRING => return try Object.initString(self.allocator, lexer),
         .FALSE => return try Object.initBool(self.allocator, false),
@@ -141,12 +143,9 @@ pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !Ob
         .NUMBER => return try Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch @panic("Error parsing float")),
         else => unreachable,
     };
-    // const s = try self.allocator.create(Object);
-    // s.* = obj;
-    // return obj;
 }
 
-fn consume(self: *Parser, tokenType: TokenType, msg: []const u8) Token {
+fn consume(self: *Parser, tokenType: TokenType, msg: []const u8) *Token {
     if (self.check(tokenType)) return self.advance();
 
     Logger.report(self.allocator, self.peek().line, "Error", msg);
@@ -163,7 +162,7 @@ fn match(self: *Parser, types: []TokenType) bool {
     return false;
 }
 
-fn matchType(self: *Parser, types: []TokenType) ?Token {
+fn matchType(self: *Parser, types: []TokenType) ?*Token {
     for (types) |tp| {
         if (self.check(tp)) {
             const token = self.peek();
@@ -179,7 +178,7 @@ fn check(self: *Parser, tokenType: TokenType) bool {
     return self.peek().tokenType == tokenType;
 }
 
-fn advance(self: *Parser) Token {
+fn advance(self: *Parser) *Token {
     if (!self.isAtEnd()) self.current += 1;
     return self.previous();
 }
@@ -188,13 +187,26 @@ fn isAtEnd(self: *Parser) bool {
     return self.peek().tokenType == TokenType.EOF;
 }
 
-fn peek(self: *Parser) Token {
-    std.debug.print("PEEK IS `{s}` {any}\n", .{ self.tokens.items[self.current].lexer, self.tokens.items[self.current].tokenType });
-    return self.tokens.items[self.current].*;
+fn peek(self: *Parser) *Token {
+    return self.tokens.items[self.current];
 }
 
-fn previous(self: *Parser) Token {
-    return self.tokens.items[self.current - 1].*;
+fn previous(self: *Parser) *Token {
+    return self.tokens.items[self.current - 1];
+}
+
+fn syncrhonize(self: *Parser) void {
+    self.advance();
+
+    while (!self.isAtEnd()) {
+        if (self.previous().tokenType == TokenType.SEMICOLON) return;
+
+        switch (self.peek().tokenType) {
+            .CLASS, .FUN, .VAR, .FOR, .IF, .WHILE, .PRINT, .RETURN => break,
+            else => continue,
+        }
+        advance();
+    }
 }
 
 const ParserError = error{

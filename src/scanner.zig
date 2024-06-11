@@ -38,9 +38,9 @@ pub fn scanTokens(self: *Scanner) !std.ArrayList(*Token) {
 
     const token = self.createToken(TokenType.EOF, "", self.line);
     try self.tokens.append(token);
-    for (self.tokens.items) |t| {
-        std.debug.print("ITEMS: {s}\n", .{t.lexer});
-    }
+    // for (self.tokens.items) |t| {
+    //     std.debug.print("ITEMS: {s}\n", .{t.lexer});
+    // }
     return self.tokens;
 }
 
@@ -183,9 +183,8 @@ fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, li
         @panic("Error allocating token");
     };
 
-    std.debug.print("LITERAL TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
+    // std.debug.print("LITERAL TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
     token.*.tokenType = tokenType;
-    // token.*.lexer = "lexer";
     token.*.lexer = text;
     token.*.line = line;
     token.*.literal = literal;
