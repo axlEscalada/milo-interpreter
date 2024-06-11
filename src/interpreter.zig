@@ -12,26 +12,36 @@ pub const Interpreter = struct {
         std.debug.print("VALUE {s}\n", .{str});
     }
 
-    fn stringify(self: *Interpreter, object: *Object) ![]const u8 {
-        // if (object == null) return "nil";
-
-        if (object.* == Object.float) {
-            const text = try std.fmt.allocPrint(self.allocator, "{d}", .{object.float()});
+    fn stringify(self: *Interpreter, object: Object) ![]const u8 {
+        if (object == Object.float) {
+            var text = try std.fmt.allocPrint(self.allocator, "{d}", .{object.float.*});
             if (std.mem.endsWith(u8, text, ".0")) {
                 text = text[0 .. text.len - 2];
             }
             return text;
+        } else if (object == Object.string) {
+            return object.string.*;
+        } else if (object == Object.boolean) {
+            if (object.boolean.*) {
+                return "true";
+            } else {
+                return "false";
+            }
         }
 
         return "nonimopl";
     }
 
-    pub fn visitLiteral(self: *Interpreter, expr: *Expr) !*Object {
+    pub fn visitLiteral(self: *Interpreter, expr: *Expr) !Object {
         _ = self;
         return expr.value.?;
     }
 
-    pub fn visitUnaryExpr(self: *Interpreter, expr: *Expr) !?*Object {
+    pub fn visitGrouping(self: *Interpreter, expr: *Expr) !Object {
+        return self.evaluate(expr.expression.?);
+    }
+
+    pub fn visitUnaryExpr(self: *Interpreter, expr: *Expr) !Object {
         const right = self.evaluate(expr.right.?);
 
         return switch (expr.operator.?.tokenType) {
@@ -41,41 +51,62 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn visitBinary(self: *Interpreter, expr: *Expr) !*Object {
-        const left = self.evaluate(expr.left.?);
-        const right = self.evaluate(expr.right.?);
+    pub fn visitBinary(self: *Interpreter, expr: *Expr) anyerror!Object {
+        const left = try self.evaluate(expr.left.?);
+        const right = try self.evaluate(expr.right.?);
 
-        const value = switch (expr.operator.?.tokenType) {
-            .MINUS => left.float - right.float,
-            .SLASH => left.float / right.float,
-            .STAR => if (left == .float and right == .float) {
-                left.float * right.float;
-            } else if (left == .string and right == .string) {
-                //TODO: fmt alloc two strings
-            },
-            .PLUS => left.float + right.float,
-            else => 0,
+        return switch (expr.operator.?.tokenType) {
+            .MINUS => try Object.initFloat(self.allocator, left.float.* - right.float.*),
+            .SLASH => try Object.initFloat(self.allocator, left.float.* / right.float.*),
+            .STAR => try Object.initFloat(self.allocator, left.float.* * right.float.*),
+            .PLUS => if (left == Object.float and right == Object.float) {
+                return try Object.initFloat(self.allocator, left.float.* + right.float.*);
+            } else if (left == Object.string and right == Object.string) {
+                const concat_str = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ left.string.*[1 .. left.string.*.len - 1], right.string.*[1 .. right.string.*.len - 1] });
+                return try Object.initString(self.allocator, concat_str);
+            } else @panic("Unsopported types for addition"),
+            .GREATER => try Object.initBool(self.allocator, left.float.* > right.float.*),
+            .GREATER_EQUAL => try Object.initBool(self.allocator, left.float.* >= right.float.*),
+            .LESS => try Object.initBool(self.allocator, left.float.* < right.float.*),
+            .LESS_EQUAL => try Object.initBool(self.allocator, left.float.* <= right.float.*),
+            .EQUAL_EQUAL => try Object.initBool(self.allocator, self.isEqual(left, right)),
+            else => Object.initString(self.allocator, "NOT EVALUATED"),
         };
-        return Object.initFloat(self.allocator, value);
     }
 
-    pub fn visitUnary(self: *Interpreter, expr: *Expr) !?*Object {
-        const right = try self.evaluate(expr.right);
-        return switch (expr.operator.tokenType) {
+    pub fn visitUnary(self: *Interpreter, expr: *Expr) !Object {
+        const right = try self.evaluate(expr.right.?);
+        return switch (expr.operator.?.tokenType) {
             .MINUS => right,
-            else => null,
+            else => @panic("PANIC UNARY"),
         };
     }
 
-    fn evaluate(self: *Interpreter, expr: *Expr) !?*Object {
-        return try expr.accept(self, ?*Object);
+    fn evaluate(self: *Interpreter, expr: *Expr) !Object {
+        return try expr.accept(self, Object);
     }
 
-    fn isTruthy(self: *Interpreter, object: *Object) *Object {
-        if (object == null) return Object.initBool(self.allocator, false);
+    fn isEqual(self: *Interpreter, a: Object, b: Object) bool {
+        _ = self;
+        // if (a == null and b == null) return true;
+        // if (a == null) return false;
+
+        if (a == Object.float and b == Object.float) {
+            return a.float.* == b.float.*;
+        } else if (a == Object.string and b == Object.string) {
+            return std.mem.eql(u8, a.string.*, b.string.*);
+        } else if (a == Object.boolean and b == Object.boolean) {
+            return a.boolean.* == b.boolean.*;
+        }
+        return false;
+    }
+
+    fn isTruthy(self: *Interpreter, object: *Object) bool {
+        _ = self;
+        if (object == null) return false;
         return switch (object) {
-            .boolean => return object,
-            else => return true,
+            .boolean => object.bool.*,
+            else => true,
         };
     }
 };

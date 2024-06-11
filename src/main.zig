@@ -118,7 +118,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         };
         if (!hadError) {
             const result = astPrinter.print(expr) catch |e| return e;
-            std.debug.print("{s}\n", .{result});
+            std.debug.print("AST print: {s}\n", .{result});
             try interpreter.interpret(expr);
             // for (tokens[0..]) |*r| {
             //     if (r.*.tokenType == TokenType.EOF) break;
