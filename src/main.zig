@@ -4,7 +4,7 @@ const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const Scanner = @import("scanner.zig");
 const Allocator = std.mem.Allocator;
-const Interpreter = @import("interpreter.zig").Intrepreter;
+const Interpreter = @import("interpreter.zig").Interpreter;
 const AstPrinter = @import("interpreter.zig").AstPrinter;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const Expr = @import("expression.zig").Expr;
@@ -111,6 +111,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         const tokens = try scanner.scanTokens();
         var parser = Parser.init(tokens, alloc);
         var astPrinter = AstPrinter{ .allocator = alloc };
+        var interpreter = Interpreter{ .allocator = alloc };
         const expr = parser.expression() catch |e| {
             std.log.err("Error while parsing prompt {any}\n", .{e});
             return error.Prompt;
@@ -118,6 +119,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         if (!hadError) {
             const result = astPrinter.print(expr) catch |e| return e;
             std.debug.print("{s}\n", .{result});
+            try interpreter.interpret(expr);
             // for (tokens[0..]) |*r| {
             //     if (r.*.tokenType == TokenType.EOF) break;
             //     const final_url = try std.fmt.allocPrint(alloc, "Token: `{s}` Type: {}\n", .{ r.*.lexer, r.*.tokenType });
