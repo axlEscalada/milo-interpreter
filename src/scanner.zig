@@ -57,7 +57,7 @@ fn scanToken(self: *Scanner) !void {
         '}' => try self.addToken(TokenType.RIGHT_BRACE),
         ',' => try self.addToken(TokenType.COMMA),
         '.' => try self.addToken(TokenType.DOT),
-        '-' => try self.addToken(TokenType.MINUS),
+        '-' => if (self.isDigit(self.peekNext())) try self.number() else try self.addToken(TokenType.MINUS),
         '+' => try self.addToken(TokenType.PLUS),
         ';' => try self.addToken(TokenType.SEMICOLON),
         '*' => try self.addToken(TokenType.STAR),
@@ -115,6 +115,9 @@ fn isDigit(self: *Scanner, c: u8) bool {
 }
 
 fn number(self: *Scanner) !void {
+    if (self.peek() == '-' and self.isDigit(self.peekNext())) {
+        _ = self.advance();
+    }
     while (self.isDigit(self.peek())) _ = self.advance();
 
     if (self.peek() == '.' and self.isDigit(self.peekNext())) {
