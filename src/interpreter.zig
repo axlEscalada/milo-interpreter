@@ -2,14 +2,22 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Expr = @import("expression.zig").Expr;
 const Object = @import("expression.zig").Object;
+const Stmt = @import("statement.zig").Stmt;
 
 pub const Interpreter = struct {
     allocator: Allocator,
 
-    pub fn interpret(self: *Interpreter, expr: *Expr) !void {
-        const value = try self.evaluate(expr);
-        const str = try self.stringify(value);
-        std.debug.print("VALUE {s}\n", .{str});
+    // pub fn interpret(self: *Interpreter, expr: *Expr) !void {
+    //     const value = try self.evaluate(expr);
+    //     const str = try self.stringify(value);
+    //     std.debug.print("VALUE {s}\n", .{str});
+    // }
+
+    pub fn interpret(self: *Interpreter, statements: []*Stmt) void {
+        for (statements) |st| {
+            // self.execute(st);
+            st.accept(void, self);
+        }
     }
 
     fn stringify(self: *Interpreter, object: Object) ![]const u8 {
@@ -72,6 +80,19 @@ pub const Interpreter = struct {
             .EQUAL_EQUAL => try Object.initBool(self.allocator, self.isEqual(left, right)),
             else => Object.initString(self.allocator, "NOT EVALUATED"),
         };
+    }
+
+    pub fn visitExpressions(self: *Interpreter, stmt: Stmt) !void {
+        self.evaluate(stmt.expression);
+    }
+
+    pub fn visitPrint(self: *Interpreter, stmt: Stmt) !void {
+        const value = self.evaluate(stmt.expression);
+        std.io.getStdOut().write(self.stringify(value));
+    }
+
+    fn execute(self: *Interpreter, stmt: *Stmt) void {
+        stmt.accept(void, self);
     }
 
     pub fn visitUnary(self: *Interpreter, expr: *Expr) !Object {

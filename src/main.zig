@@ -99,6 +99,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
     const stdout = std.io.getStdOut().writer();
     var buffer: [1024]u8 = undefined;
     var line: []u8 = undefined;
+    _ = try alloc.alloc(u8, 1024);
     while (true) {
         _ = try stdout.write(">> ");
         line = try stdin.readUntilDelimiterOrEof(&buffer, '\n') orelse "";
@@ -116,16 +117,12 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
             std.log.err("Error while parsing prompt {any}\n", .{e});
             return error.Prompt;
         };
+        const statements = try parser.parse();
         if (!hadError) {
             const result = astPrinter.print(expr) catch |e| return e;
             std.debug.print("AST print: {s}\n", .{result});
-            try interpreter.interpret(expr);
-            // for (tokens[0..]) |*r| {
-            //     if (r.*.tokenType == TokenType.EOF) break;
-            //     const final_url = try std.fmt.allocPrint(alloc, "Token: `{s}` Type: {}\n", .{ r.*.lexer, r.*.tokenType });
-            //     defer alloc.free(final_url);
-            //     _ = try stdout.write(final_url);
-            // }
+            // try interpreter.interpret(expr);
+            interpreter.interpret(statements);
         }
 
         hadError = false;

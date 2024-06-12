@@ -5,12 +5,44 @@ const Allocator = std.mem.Allocator;
 const Expr = @import("expression.zig").Expr;
 const Object = @import("expression.zig").Object;
 const Logger = @import("logger.zig");
+const Stmt = @import("statement.zig").Stmt;
 
 pub const Parser = @This();
 
 current: usize = 0,
 tokens: std.ArrayList(*Token),
 allocator: Allocator,
+
+pub fn parse(self: *Parser) ![]*Stmt {
+    var statements = std.ArrayList(*Stmt).init(self.allocator);
+    while (!self.isAtEnd()) {
+        const stmt = try self.statement();
+        try statements.append(stmt);
+    }
+    return statements.items;
+}
+
+fn statement(self: *Parser) !*Stmt {
+    var tokenTypes = [_]TokenType{TokenType.PRINT};
+    if (self.match(&tokenTypes)) return self.printStatement();
+    return self.expressionStatement();
+}
+
+fn printStatement(self: *Parser) !*Stmt {
+    const value = try self.expression();
+    _ = self.consume(TokenType.SEMICOLON, "Expect ';' after value.");
+    const stmt = try self.allocator.create(Stmt);
+    stmt.* = .{ .print = .{ .expression = value } };
+    return stmt;
+}
+
+fn expressionStatement(self: *Parser) !*Stmt {
+    const expr = try self.expression();
+    _ = self.consume(TokenType.SEMICOLON, "Expect ';' after expression.");
+    const stmt = try self.allocator.create(Stmt);
+    stmt.* = .{ .expression = .{ .expression = expr } };
+    return stmt;
+}
 
 pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
     // std.debug.print("Tokens parser {any}\n", .{tokens});

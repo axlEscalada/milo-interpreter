@@ -4,6 +4,8 @@ with (import <nixpkgs> {}); let
 in
   pkgs.mkShell {
     nativeBuildInputs = with pkgs.buildPackages; [
+      gdb
+      valgrind
       zls
       (import zig-overlay {}).master
     ];
