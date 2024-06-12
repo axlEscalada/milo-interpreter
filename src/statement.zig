@@ -15,6 +15,12 @@ pub const Stmt = union(StatementType) {
     variable: Variable,
     while_statement: While,
 
+    pub fn init(allocator: std.mem.Allocator, args: anytype) !*Stmt {
+        const stmt = try allocator.create(Stmt);
+        stmt.* = args;
+        return stmt;
+    }
+
     pub fn accept(self: *Stmt, comptime T: type, visitor: anytype) T {
         return switch (self.*) {
             .block => visitor.visitBlock(self),
@@ -66,8 +72,8 @@ pub const Return = struct {
 };
 
 pub const Variable = struct {
-    name: Token,
-    initializer: Expr,
+    name: *Token,
+    initializer: ?*Expr,
 };
 
 pub const While = struct {

@@ -3,10 +3,11 @@ with (import <nixpkgs> {}); let
   zig-overlay = fetchTarball "https://github.com/mitchellh/zig-overlay/archive/master.tar.gz";
 in
   pkgs.mkShell {
-    nativeBuildInputs = with pkgs.buildPackages; [
-      gdb
-      valgrind
-      zls
-      (import zig-overlay {}).master
-    ];
+    nativeBuildInputs = with pkgs.buildPackages;
+      [
+        zls
+        (import zig-overlay {}).master
+      ]
+      ++ lib.optional (stdenv.isLinux) valgrind
+      ++ lib.optional (stdenv.isLinux) gdb;
   }

@@ -16,10 +16,33 @@ allocator: Allocator,
 pub fn parse(self: *Parser) ![]*Stmt {
     var statements = std.ArrayList(*Stmt).init(self.allocator);
     while (!self.isAtEnd()) {
-        const stmt = try self.statement();
-        try statements.append(stmt);
+        // const stmt = try self.statement();
+        if (try self.declaration()) |st| {
+            try statements.append(st);
+        }
     }
     return statements.items;
+}
+
+fn declaration(self: *Parser) !?*Stmt {
+    var types = [_]TokenType{TokenType.VAR};
+    if (self.match(&types)) return self.varDeclaration();
+    return self.statement() catch |e| {
+        std.log.err("error {any}\n", .{e});
+        self.syncrhonize();
+        return null;
+    };
+}
+
+fn varDeclaration(self: *Parser) !*Stmt {
+    const name = self.consume(TokenType.IDENTIFIER, "Expect variable name.");
+    var initializer: ?*Expr = null;
+    var token_types = [_]TokenType{TokenType.EQUAL};
+    if (self.match(&token_types)) {
+        initializer = try self.expression();
+    }
+    _ = self.consume(TokenType.SEMICOLON, "Expect ';' after variable declaration.");
+    return Stmt.init(self.allocator, .{ .variable = .{ .name = name, .initializer = initializer } });
 }
 
 fn statement(self: *Parser) !*Stmt {
@@ -228,7 +251,7 @@ fn previous(self: *Parser) *Token {
 }
 
 fn syncrhonize(self: *Parser) void {
-    self.advance();
+    _ = self.advance();
 
     while (!self.isAtEnd()) {
         if (self.previous().tokenType == TokenType.SEMICOLON) return;
@@ -237,7 +260,7 @@ fn syncrhonize(self: *Parser) void {
             .CLASS, .FUN, .VAR, .FOR, .IF, .WHILE, .PRINT, .RETURN => break,
             else => continue,
         }
-        advance();
+        _ = self.advance();
     }
 }
 

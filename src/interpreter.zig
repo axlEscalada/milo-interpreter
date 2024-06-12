@@ -13,10 +13,10 @@ pub const Interpreter = struct {
     //     std.debug.print("VALUE {s}\n", .{str});
     // }
 
-    pub fn interpret(self: *Interpreter, statements: []*Stmt) void {
+    pub fn interpret(self: *Interpreter, statements: []*Stmt) !void {
         for (statements) |st| {
             // self.execute(st);
-            st.accept(void, self);
+            try st.accept(anyerror!void, self);
         }
     }
 
@@ -82,13 +82,51 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn visitExpressions(self: *Interpreter, stmt: Stmt) !void {
-        self.evaluate(stmt.expression);
+    pub fn visitExpression(self: *Interpreter, stmt: *Stmt) !void {
+        _ = try self.evaluate(stmt.expression.expression);
     }
 
-    pub fn visitPrint(self: *Interpreter, stmt: Stmt) !void {
-        const value = self.evaluate(stmt.expression);
-        std.io.getStdOut().write(self.stringify(value));
+    pub fn visitPrint(self: *Interpreter, stmt: *Stmt) !void {
+        const value = try self.evaluate(stmt.print.expression);
+        const str = try self.stringify(value);
+        const file = std.io.getStdOut();
+        _ = try file.write(str);
+        _ = try file.write("\n");
+    }
+
+    pub fn visitBlock(self: *Interpreter, stmt: *Stmt) !void {
+        _ = self;
+        _ = stmt;
+    }
+
+    pub fn visitClass(self: *Interpreter, stmt: *Stmt) !void {
+        _ = self;
+        _ = stmt;
+    }
+
+    pub fn visitFunction(self: *Interpreter, stmt: *Stmt) !void {
+        _ = self;
+        _ = stmt;
+    }
+
+    pub fn visitIf(self: *Interpreter, stmt: *Stmt) !void {
+        _ = self;
+        _ = stmt;
+    }
+
+    pub fn visitReturn(self: *Interpreter, stmt: *Stmt) !void {
+        _ = self;
+        _ = stmt;
+    }
+
+    pub fn visitVariable(self: *Interpreter, stmt: *Stmt) !void {
+        _ = self;
+        _ = stmt;
+    }
+
+    pub fn visitWhile(self: *Interpreter, stmt: *Stmt) !void {
+        _ = self;
+        _ = stmt;
     }
 
     fn execute(self: *Interpreter, stmt: *Stmt) void {
@@ -104,7 +142,7 @@ pub const Interpreter = struct {
     }
 
     fn evaluate(self: *Interpreter, expr: *Expr) !Object {
-        return try expr.accept(self, Object);
+        return expr.accept(self, Object);
     }
 
     fn isEqual(self: *Interpreter, a: Object, b: Object) bool {
