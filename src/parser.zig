@@ -16,7 +16,6 @@ allocator: Allocator,
 pub fn parse(self: *Parser) ![]*Stmt {
     var statements = std.ArrayList(*Stmt).init(self.allocator);
     while (!self.isAtEnd()) {
-        // const stmt = try self.statement();
         if (try self.declaration()) |st| {
             try statements.append(st);
         }
@@ -68,10 +67,6 @@ fn expressionStatement(self: *Parser) !*Stmt {
 }
 
 pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
-    // std.debug.print("Tokens parser {any}\n", .{tokens});
-    // for (tokens.items) |t| {
-    //     std.debug.print("Parser {s} and type {any}\n", .{ t.lexer, t.tokenType });
-    // }
     return .{
         .tokens = tokens,
         .allocator = allocator,
@@ -79,12 +74,10 @@ pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
 }
 
 pub fn expression(self: *Parser) ParserError!*Expr {
-    const expr = self.equality() catch |e| {
+    return self.equality() catch |e| {
         std.log.err("Error parsing expression {!}\n", .{e});
         return ParserError.ParsingExpression;
     };
-    // std.debug.print("Expr is {any}\n", .{expr});
-    return expr;
 }
 
 fn equality(self: *Parser) ParserError!*Expr {
@@ -177,6 +170,10 @@ fn primary(self: *Parser) ParserError!*Expr {
             return ParserError.ParsingLiteral;
         };
         return expr;
+    }
+    var identifier = [_]TokenType{TokenType.IDENTIFIER};
+    if (self.match(&identifier)) {
+        return Expr.initVariable(self.previous());
     }
     var parType = [1]TokenType{TokenType.LEFT_PAREN};
     if (self.match(&parType)) {
