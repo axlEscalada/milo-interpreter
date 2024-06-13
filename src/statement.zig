@@ -47,7 +47,7 @@ pub const Class = struct {
 };
 
 pub const Expression = struct {
-    expression: *Expr,
+    expression: Expr,
 };
 
 pub const Function = struct {
@@ -63,7 +63,7 @@ pub const If = struct {
 };
 
 pub const Print = struct {
-    expression: *Expr,
+    expression: Expr,
 };
 
 pub const Return = struct {
@@ -73,7 +73,7 @@ pub const Return = struct {
 
 pub const Variable = struct {
     name: *Token,
-    initializer: ?*Expr,
+    initializer: ?Expr,
 };
 
 pub const While = struct {

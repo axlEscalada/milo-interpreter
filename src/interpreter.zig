@@ -40,16 +40,16 @@ pub const Interpreter = struct {
         return "nonimopl";
     }
 
-    pub fn visitLiteral(self: *Interpreter, expr: *Expr) !Object {
+    pub fn visitLiteral(self: *Interpreter, expr: Expr) !Object {
         _ = self;
-        return expr.value.?;
+        return expr.literal.value;
     }
 
-    pub fn visitGrouping(self: *Interpreter, expr: *Expr) !Object {
-        return self.evaluate(expr.expression.?);
+    pub fn visitGrouping(self: *Interpreter, expr: Expr) !Object {
+        return self.evaluate(expr.grouping.expression);
     }
 
-    pub fn visitUnaryExpr(self: *Interpreter, expr: *Expr) !Object {
+    pub fn visitUnaryExpr(self: *Interpreter, expr: Expr) !Object {
         const right = self.evaluate(expr.right.?);
 
         return switch (expr.operator.?.tokenType) {
@@ -59,11 +59,11 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn visitBinary(self: *Interpreter, expr: *Expr) anyerror!Object {
-        const left = try self.evaluate(expr.left.?);
-        const right = try self.evaluate(expr.right.?);
+    pub fn visitBinary(self: *Interpreter, expr: Expr) anyerror!Object {
+        const left = try self.evaluate(expr.binary.left);
+        const right = try self.evaluate(expr.binary.right);
 
-        return switch (expr.operator.?.tokenType) {
+        return switch (expr.binary.operator.tokenType) {
             .MINUS => try Object.initFloat(self.allocator, left.float.* - right.float.*),
             .SLASH => try Object.initFloat(self.allocator, left.float.* / right.float.*),
             .STAR => try Object.initFloat(self.allocator, left.float.* * right.float.*),
@@ -133,15 +133,15 @@ pub const Interpreter = struct {
         stmt.accept(void, self);
     }
 
-    pub fn visitUnary(self: *Interpreter, expr: *Expr) !Object {
-        const right = try self.evaluate(expr.right.?);
-        return switch (expr.operator.?.tokenType) {
+    pub fn visitUnary(self: *Interpreter, expr: Expr) !Object {
+        const right = try self.evaluate(expr.unary.right);
+        return switch (expr.unary.operator.tokenType) {
             .MINUS => right,
             else => @panic("PANIC UNARY"),
         };
     }
 
-    fn evaluate(self: *Interpreter, expr: *Expr) !Object {
+    fn evaluate(self: *Interpreter, expr: Expr) !Object {
         return expr.accept(self, Object);
     }
 

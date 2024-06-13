@@ -2,38 +2,10 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const token = @import("token.zig");
 
-pub const Expression = struct {
-    ptr: *anyopaque,
-    expr_type: ExprType,
-    accept: fn (*anyopaque, anytype, anytype) type,
-
-    pub fn init(pointer: anytype) Expression {
-        const Ptr = @TypeOf(pointer);
-        const ptr_info = @typeInfo(Ptr);
-
-        std.debug.assert(ptr_info == .Pointer);
-        std.debug.assert(ptr_info.Pointer.size == .One);
-
-        // const alignment = ptr_info.Pointer.alignment;
-
-        const gen = struct {
-            fn accept(ptr: *anyopaque, s: anytype, t: anytype) @TypeOf(t) {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                return @call(.{ .modifier = .always_inline }, ptr_info.Pointer.child.next, .{ self, s, t });
-            }
-        };
-
-        return .{
-            .ptr = pointer,
-            .accept = &gen.accept,
-        };
-    }
-};
-
 pub const Binary = struct {
-    operator: token.Token,
-    left: *Expression,
-    right: *Expression,
+    operator: *token.Token,
+    left: Expr,
+    right: Expr,
 
     fn accept(self: *Binary, visitor: anytype, comptime T: type) T {
         visitor.visitBinary(self);
@@ -50,80 +22,91 @@ pub const Literal = struct {
 };
 
 pub const Grouping = struct {
-    expression: *Expression,
+    expression: Expr,
 
     fn accept(self: *Grouping, visitor: anytype, comptime T: type) T {
-        visitor.visitLiteral(self);
+        visitor.visitGrouping(self);
     }
 };
 
 pub const Unary = struct {
-    operator: token.Token,
-    right: *Expression,
+    operator: *token.Token,
+    right: Expr,
 
     fn accept(self: *Unary, visitor: anytype, comptime T: type) T {
-        visitor.visitLiteral(self);
+        visitor.visitUnary(self);
     }
 };
 
-pub const Expr = struct {
-    operator: ?*token.Token = null,
-    expression: ?*Expr = null,
-    left: ?*Expr = null,
-    right: ?*Expr = null,
-    valueString: ?[]const u8 = null,
-    value: ?Object = null,
-    tag: ExprType,
+pub const Variable = struct {
+    name: *token.Token,
+
+    fn accept(self: *Variable, visitor: anytype, comptime T: type) T {
+        visitor.visitVariable(self);
+    }
+};
+
+pub const Expr = union(ExprType) {
+    binary: *Binary,
+    unary: *Unary,
+    literal: *Literal,
+    grouping: *Grouping,
+    variable: *Variable,
 
     pub const Self = @This();
 
-    pub fn initBinary(allocator: Allocator, op: *token.Token, left: *Expr, right: *Expr) !*Expr {
-        // std.debug.print("Left {s} Right {s}\n", .{ left.valueString.?, right.valueString.? });
-        var expr = allocator.create(Expr) catch |e| {
+    pub fn initBinary(allocator: Allocator, op: *token.Token, left: Expr, right: Expr) !Expr {
+        const binary = allocator.create(Binary) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingExpression;
         };
 
-        expr.tag = ExprType.binary;
-        expr.operator = op;
-        expr.left = left;
-        expr.right = right;
-        return expr;
+        binary.* = .{
+            .operator = op,
+            .left = left,
+            .right = right,
+        };
+        return Expr{ .binary = binary };
     }
 
-    pub fn initLiteral(allocator: Allocator, valueString: []const u8, value: Object) !*Expr {
-        // std.debug.print("Expr VALUE STRING {s}\n", .{valueString});
-        const expr = allocator.create(Expr) catch |e| {
+    pub fn initLiteral(allocator: Allocator, value_string: []const u8, value: Object) !Expr {
+        const literal = allocator.create(Literal) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingLiteral;
         };
-        expr.* = .{ .tag = ExprType.literal, .valueString = valueString, .value = value, .operator = null };
-        return expr;
+        literal.* = .{ .value_string = value_string, .value = value };
+        return Expr{ .literal = literal };
     }
 
-    pub fn initGrouping(allocator: Allocator, group: *Expr) !*Expr {
-        var expr = allocator.create(Expr) catch |e| {
+    pub fn initGrouping(allocator: Allocator, group: Expr) !Expr {
+        const grouping = allocator.create(Grouping) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingGrouping;
         };
-        expr.tag = ExprType.grouping;
-        expr.expression = group;
-        return expr;
+        grouping.* = .{ .expression = group };
+        return Expr{ .grouping = grouping };
     }
 
-    pub fn initUnary(allocator: Allocator, right: *Expr, op: *token.Token) !*Expr {
-        var expr = allocator.create(Expr) catch |e| {
+    pub fn initUnary(allocator: Allocator, right: Expr, op: *token.Token) !Expr {
+        const unary = allocator.create(Unary) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingUnary;
         };
-        expr.tag = ExprType.unary;
-        expr.operator = op;
-        expr.right = right;
-        return expr;
+        unary.* = .{ .operator = op, .right = right };
+        return Expr{ .unary = unary };
     }
 
-    pub fn accept(this: *Expr, visitor: anytype, comptime T: type) !T {
-        return switch (this.tag) {
+    pub fn initVariable(allocator: Allocator, name: *token.Token) !Expr {
+        const variable = allocator.create(Variable) catch |e| {
+            std.log.err("Error {!}", .{e});
+            return error.InitializingUnary;
+        };
+        variable.* = .{ .name = name };
+        return Expr{ .variable = variable };
+    }
+
+    pub fn accept(this: Expr, visitor: anytype, comptime T: type) !T {
+        return switch (this) {
             .binary => visitor.visitBinary(this),
             .unary => visitor.visitUnary(this),
             .literal => visitor.visitLiteral(this),
@@ -133,7 +116,7 @@ pub const Expr = struct {
     }
 };
 
-pub const ExprType = enum { binary, unary, literal, grouping, err };
+pub const ExprType = enum { binary, unary, literal, grouping, variable };
 pub const ObjectType = enum { string, float, boolean };
 pub const Object = union(ObjectType) {
     string: *[]const u8,
