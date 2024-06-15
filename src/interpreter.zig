@@ -3,9 +3,11 @@ const Allocator = std.mem.Allocator;
 const Expr = @import("expression.zig").Expr;
 const Object = @import("expression.zig").Object;
 const Stmt = @import("statement.zig").Stmt;
+const Token = @import("token.zig").Token;
 
 pub const Interpreter = struct {
     allocator: Allocator,
+    environment: Environment,
 
     // pub fn interpret(self: *Interpreter, expr: *Expr) !void {
     //     const value = try self.evaluate(expr);
@@ -120,8 +122,11 @@ pub const Interpreter = struct {
     }
 
     pub fn visitVariable(self: *Interpreter, stmt: *Stmt) !void {
-        _ = self;
-        _ = stmt;
+        var value: ?Object = null;
+        if (stmt.variable.initializer) |it| {
+            value = try self.evaluate(it);
+        }
+        try self.environment.define(stmt.variable.name.lexer, value);
     }
 
     pub fn visitWhile(self: *Interpreter, stmt: *Stmt) !void {
@@ -219,5 +224,27 @@ pub const AstPrinter = struct {
             return error.AllocationError;
         };
         return builder;
+    }
+};
+
+pub const Environment = struct {
+    values: std.StringHashMap(?Object),
+
+    pub fn init(allocator: Allocator) Environment {
+        return .{
+            .values = std.StringHashMap(?Object).init(allocator),
+        };
+    }
+
+    pub fn define(self: Environment, name: []const u8, value: ?Object) !void {
+        try self.values.put(name, value);
+    }
+
+    pub fn get(self: Environment, name: Token) !Object {
+        if (self.values.contains(name.lexer)) {
+            return self.values.get(name.lexer);
+        }
+        std.log.err("Use of undefined variable {s}\n", .{name.lexer});
+        return error.UndefinedVariable;
     }
 };

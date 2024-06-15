@@ -5,10 +5,10 @@ const TokenType = @import("token.zig").TokenType;
 const Scanner = @import("scanner.zig");
 const Allocator = std.mem.Allocator;
 const Interpreter = @import("interpreter.zig").Interpreter;
+const Environment = @import("interpreter.zig").Environment;
 const AstPrinter = @import("interpreter.zig").AstPrinter;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const Expr = @import("expression.zig").Expr;
-const Expression = @import("expression.zig").Expression;
 const Binary = @import("expression.zig").Binary;
 const Literal = @import("expression.zig").Literal;
 const Object = @import("expression.zig").Object;
@@ -62,7 +62,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         const tokens = try scanner.scanTokens();
         var parser = Parser.init(tokens, alloc);
         // var astPrinter = AstPrinter{ .allocator = alloc };
-        var interpreter = Interpreter{ .allocator = alloc };
+        var interpreter = Interpreter{ .allocator = alloc, .environment = Environment.init(alloc) };
         // const expr = parser.expression() catch |e| {
         //     std.log.err("Error while parsing prompt {any}\n", .{e});
         //     return error.Prompt;
