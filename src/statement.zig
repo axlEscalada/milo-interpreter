@@ -1,6 +1,8 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
 const Expr = @import("expression.zig").Expr;
+const Interpreter = @import("interpreter.zig").Interpreter;
+const TokenType = @import("token.zig").TokenType;
 
 pub const StatementType = enum { block, class, expression, function, if_statement, print, return_statement, variable, while_statement };
 
@@ -21,17 +23,21 @@ pub const Stmt = union(StatementType) {
         return stmt;
     }
 
-    pub fn accept(self: *Stmt, comptime T: type, visitor: anytype) T {
+    pub fn accept(self: *Stmt, comptime T: type, visitor: *anyopaque) T {
+        var it: *Interpreter = @ptrCast(@alignCast(visitor));
+        std.debug.print("interpreter pointer addr {any}\n", .{&it});
+        const a = Token{ .line = 1, .lexer = "a", .literal = null, .tokenType = TokenType.IDENTIFIER };
+        std.debug.print("IS STORED A IN MAP {any}\n", .{it.environment.get(a)});
         return switch (self.*) {
-            .block => visitor.visitBlock(self),
-            .class => visitor.visitClass(self),
-            .expression => visitor.visitExpression(self),
-            .function => visitor.visitFunction(self),
-            .if_statement => visitor.visitIf(self),
-            .print => visitor.visitPrint(self),
-            .return_statement => visitor.visitReturn(self),
-            .variable => visitor.visitVariable(self),
-            .while_statement => visitor.visitWhile(self),
+            .block => it.visitBlock(self),
+            .class => it.visitClass(self),
+            .expression => it.visitExpression(self),
+            .function => it.visitFunction(self),
+            .if_statement => it.visitIf(self),
+            .print => it.visitPrint(self),
+            .return_statement => it.visitReturn(self),
+            .variable => it.visitVariableStmt(self),
+            .while_statement => it.visitWhile(self),
         };
     }
 };

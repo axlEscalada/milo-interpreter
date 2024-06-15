@@ -14,28 +14,45 @@ pub const Interpreter = struct {
     //     const str = try self.stringify(value);
     //     std.debug.print("VALUE {s}\n", .{str});
     // }
+    //
+    pub fn init(allocator: Allocator) *Interpreter {
+        const interpreter = allocator.create(Interpreter) catch |e| {
+            std.log.err("Error while creating interpreter {any}\n", .{e});
+            @panic("error while creating");
+        };
+        interpreter.* = .{
+            .allocator = allocator,
+            .environment = Environment.init(allocator),
+        };
+        return interpreter;
+    }
 
     pub fn interpret(self: *Interpreter, statements: []*Stmt) !void {
+        std.debug.print("interpreter pointer addr {any}\n", .{&self});
         for (statements) |st| {
             // self.execute(st);
+            std.debug.print("STORING A\n", .{});
+            try self.environment.define("a", null);
             try st.accept(anyerror!void, self);
         }
     }
 
-    fn stringify(self: *Interpreter, object: Object) ![]const u8 {
-        if (object == Object.float) {
-            var text = try std.fmt.allocPrint(self.allocator, "{d}", .{object.float.*});
-            if (std.mem.endsWith(u8, text, ".0")) {
-                text = text[0 .. text.len - 2];
-            }
-            return text;
-        } else if (object == Object.string) {
-            return object.string.*;
-        } else if (object == Object.boolean) {
-            if (object.boolean.*) {
-                return "true";
-            } else {
-                return "false";
+    fn stringify(self: *Interpreter, object: ?Object) ![]const u8 {
+        if (object) |ob| {
+            if (ob == Object.float) {
+                var text = try std.fmt.allocPrint(self.allocator, "{d}", .{ob.float.*});
+                if (std.mem.endsWith(u8, text, ".0")) {
+                    text = text[0 .. text.len - 2];
+                }
+                return text;
+            } else if (ob == Object.string) {
+                return ob.string.*;
+            } else if (ob == Object.boolean) {
+                if (ob.boolean.*) {
+                    return "true";
+                } else {
+                    return "false";
+                }
             }
         }
 
@@ -121,12 +138,23 @@ pub const Interpreter = struct {
         _ = stmt;
     }
 
-    pub fn visitVariable(self: *Interpreter, stmt: *Stmt) !void {
-        var value: ?Object = null;
+    pub fn visitVariableStmt(self: *Interpreter, stmt: *Stmt) !void {
+        var value: ?*Object = null;
         if (stmt.variable.initializer) |it| {
-            value = try self.evaluate(it);
+            const eval = try self.evaluate(it);
+            value = try self.allocator.create(Object);
+            value.?.* = eval;
         }
         try self.environment.define(stmt.variable.name.lexer, value);
+        std.debug.print("STORED: {any}\n", .{self.environment.get(stmt.variable.name.*)});
+    }
+
+    pub fn visitVariableExpr(self: *Interpreter, expr: Expr) !Object {
+        std.debug.print("VAR A {any}\n", .{self.environment.get(expr.variable.name.*)});
+        const variable = try self.environment.get(expr.variable.name.*);
+        if (variable) |v| {
+            return v.*;
+        } else return error.UndefinedVariable;
     }
 
     pub fn visitWhile(self: *Interpreter, stmt: *Stmt) !void {
@@ -228,21 +256,32 @@ pub const AstPrinter = struct {
 };
 
 pub const Environment = struct {
-    values: std.StringHashMap(?Object),
+    values: std.StringHashMap(?*Object),
 
     pub fn init(allocator: Allocator) Environment {
         return .{
-            .values = std.StringHashMap(?Object).init(allocator),
+            .values = std.StringHashMap(?*Object).init(allocator),
         };
     }
 
-    pub fn define(self: Environment, name: []const u8, value: ?Object) !void {
-        try self.values.put(name, value);
+    pub fn deinit(self: *Environment) void {
+        self.values.deinit();
     }
 
-    pub fn get(self: Environment, name: Token) !Object {
+    pub fn define(self: *Environment, name: []const u8, value: ?*Object) !void {
+        // std.debug.print("defining variable {s}\n", .{name});
+        // std.debug.print("PRE SAVE: {any} VARIABLE DOES EXIST? {any}\n", .{ self.values.get("a"), self.values.contains("a") });
+        try self.values.put(name, value);
+        // std.debug.print("COUNT {d}\n", .{self.values.count()});
+        // std.debug.print("POST SAVE: {any}\n", .{self.values.get("a")});
+    }
+
+    pub fn get(self: *Environment, name: Token) !?*Object {
+        // std.debug.print("retrieving variable {s} OK\n", .{name.lexer});
+        // std.debug.print("STORED: {any} OK\n", .{self.values.get(name.lexer)});
         if (self.values.contains(name.lexer)) {
-            return self.values.get(name.lexer);
+            std.debug.print("variable does exist {s}\n", .{name.lexer});
+            return self.values.get(name.lexer).?;
         }
         std.log.err("Use of undefined variable {s}\n", .{name.lexer});
         return error.UndefinedVariable;

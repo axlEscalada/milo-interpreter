@@ -50,6 +50,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
     var buffer: [1024]u8 = undefined;
     var line: []u8 = undefined;
     _ = try alloc.alloc(u8, 1024);
+    var interpreter = Interpreter.init(alloc);
     while (true) {
         _ = try stdout.write(">> ");
         line = try stdin.readUntilDelimiterOrEof(&buffer, '\n') orelse "";
@@ -62,7 +63,6 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         const tokens = try scanner.scanTokens();
         var parser = Parser.init(tokens, alloc);
         // var astPrinter = AstPrinter{ .allocator = alloc };
-        var interpreter = Interpreter{ .allocator = alloc, .environment = Environment.init(alloc) };
         // const expr = parser.expression() catch |e| {
         //     std.log.err("Error while parsing prompt {any}\n", .{e});
         //     return error.Prompt;

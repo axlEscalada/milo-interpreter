@@ -6,44 +6,24 @@ pub const Binary = struct {
     operator: *token.Token,
     left: Expr,
     right: Expr,
-
-    fn accept(self: *Binary, visitor: anytype, comptime T: type) T {
-        visitor.visitBinary(self);
-    }
 };
 
 pub const Literal = struct {
     value_string: []const u8,
     value: Object,
-
-    fn accept(self: *Literal, visitor: anytype, comptime T: type) T {
-        visitor.visitLiteral(self);
-    }
 };
 
 pub const Grouping = struct {
     expression: Expr,
-
-    fn accept(self: *Grouping, visitor: anytype, comptime T: type) T {
-        visitor.visitGrouping(self);
-    }
 };
 
 pub const Unary = struct {
     operator: *token.Token,
     right: Expr,
-
-    fn accept(self: *Unary, visitor: anytype, comptime T: type) T {
-        visitor.visitUnary(self);
-    }
 };
 
 pub const Variable = struct {
     name: *token.Token,
-
-    fn accept(self: *Variable, visitor: anytype, comptime T: type) T {
-        visitor.visitVariable(self);
-    }
 };
 
 pub const Expr = union(ExprType) {
@@ -111,7 +91,8 @@ pub const Expr = union(ExprType) {
             .unary => visitor.visitUnary(this),
             .literal => visitor.visitLiteral(this),
             .grouping => visitor.visitGrouping(this),
-            else => @panic("error accept token"),
+            .variable => visitor.visitVariableExpr(this),
+            // else => @panic("error accept token"),
         };
     }
 };
