@@ -4,6 +4,7 @@ const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const Scanner = @import("scanner.zig");
 const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Interpreter = @import("interpreter.zig").Interpreter;
 const Environment = @import("interpreter.zig").Environment;
 const AstPrinter = @import("interpreter.zig").AstPrinter;
@@ -27,6 +28,11 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    errdefer {
+        std.debug.print("FREEING ARENA MEMORY\n", .{});
+        arena.deinit();
+    }
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
@@ -37,7 +43,7 @@ pub fn main() !void {
     } else if (args.len == 2) {
         try runFile(args[0], allocator);
     } else {
-        try runPrompt(allocator);
+        try runPrompt(arena.allocator());
         if (hadError) {
             return;
         }
@@ -51,6 +57,11 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
     var line: []u8 = undefined;
     _ = try alloc.alloc(u8, 1024);
     var interpreter = Interpreter.init(alloc);
+    defer interpreter.deinit();
+    // const z = Token{ .line = 1, .lexer = "z", .literal = null, .tokenType = TokenType.IDENTIFIER };
+    // std.debug.print("INTERPRET IS STORED A IN MAP {any}\n", .{interpreter.environment.get(z)});
+    // const obj = try Object.initBool(interpreter.allocator, true);
+    // try interpreter.environment.define("z", obj);
     while (true) {
         _ = try stdout.write(">> ");
         line = try stdin.readUntilDelimiterOrEof(&buffer, '\n') orelse "";
@@ -72,7 +83,11 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
             // const result = astPrinter.print(expr) catch |e| return e;
             // std.debug.print("AST print: {s}\n", .{result});
             // try interpreter.interpret(expr);
+            const name = Token{ .line = 1, .lexer = "a", .literal = null, .tokenType = TokenType.IDENTIFIER };
+            std.debug.print("PREV MAIN a is present {any}\n", .{interpreter.environment.get(name)});
             try interpreter.interpret(statements);
+            std.debug.print("POST MAIN a is present {any}\n", .{interpreter.environment.get(name)});
+            std.debug.print("SIZE ENV {d}\n", .{interpreter.environment.size()});
         }
 
         hadError = false;

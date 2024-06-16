@@ -2,6 +2,7 @@ const std = @import("std");
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Expr = @import("expression.zig").Expr;
 const Object = @import("expression.zig").Object;
 const Logger = @import("logger.zig");
@@ -35,7 +36,7 @@ fn declaration(self: *Parser) !?*Stmt {
 
 fn varDeclaration(self: *Parser) !*Stmt {
     const name = self.consume(TokenType.IDENTIFIER, "Expect variable name.");
-    var initializer: ?Expr = null;
+    var initializer: ?*Expr = null;
     var token_types = [_]TokenType{TokenType.EQUAL};
     if (self.match(&token_types)) {
         initializer = try self.expression();
@@ -73,14 +74,14 @@ pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
     };
 }
 
-pub fn expression(self: *Parser) ParserError!Expr {
+pub fn expression(self: *Parser) ParserError!*Expr {
     return self.equality() catch |e| {
         std.log.err("Error parsing expression {!}\n", .{e});
         return ParserError.ParsingExpression;
     };
 }
 
-fn equality(self: *Parser) ParserError!Expr {
+fn equality(self: *Parser) ParserError!*Expr {
     var expr = self.comparison() catch |e| {
         return e;
     };
@@ -100,7 +101,7 @@ fn equality(self: *Parser) ParserError!Expr {
     return expr;
 }
 
-fn comparison(self: *Parser) ParserError!Expr {
+fn comparison(self: *Parser) ParserError!*Expr {
     var expr = self.term() catch |e| {
         std.log.err("Error parsing comparison {!}\n", .{e});
         return e;
@@ -117,7 +118,7 @@ fn comparison(self: *Parser) ParserError!Expr {
     return expr;
 }
 
-fn term(self: *Parser) ParserError!Expr {
+fn term(self: *Parser) ParserError!*Expr {
     var expr = self.factor() catch |e| return e;
     var tokenTypes = [2]TokenType{ TokenType.MINUS, TokenType.PLUS };
     while (self.match(&tokenTypes)) {
@@ -131,7 +132,7 @@ fn term(self: *Parser) ParserError!Expr {
     return expr;
 }
 
-fn factor(self: *Parser) ParserError!Expr {
+fn factor(self: *Parser) ParserError!*Expr {
     var expr = self.unary() catch |e| return e;
     var tokenTypes = [2]TokenType{ TokenType.STAR, TokenType.SLASH };
     while (self.match(&tokenTypes)) {
@@ -145,11 +146,11 @@ fn factor(self: *Parser) ParserError!Expr {
     return expr;
 }
 
-fn unary(self: *Parser) ParserError!Expr {
+fn unary(self: *Parser) ParserError!*Expr {
     var tokenTypes = [2]TokenType{ TokenType.BANG, TokenType.LESS };
     if (self.match(&tokenTypes)) {
         const operator = self.previous();
-        const right = self.unary() catch |e| return e;
+        const right = try self.unary();
         return Expr.initUnary(self.allocator, right, operator) catch |e| {
             std.log.err("Error parsing unary {!}\n", .{e});
             return ParserError.ParsingUnary;
@@ -158,7 +159,7 @@ fn unary(self: *Parser) ParserError!Expr {
     return self.primary();
 }
 
-fn primary(self: *Parser) ParserError!Expr {
+fn primary(self: *Parser) ParserError!*Expr {
     var tokenTypes = [_]TokenType{ TokenType.STRING, TokenType.NUMBER, TokenType.NIL, TokenType.TRUE, TokenType.FALSE };
     if (self.matchType(&tokenTypes)) |token| {
         const literal = self.createLiteral(token.tokenType, token.lexer) catch |e| {
@@ -190,7 +191,7 @@ fn primary(self: *Parser) ParserError!Expr {
     @panic("Can't close parenthesis");
 }
 
-pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !Object {
+pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*Object {
     return switch (tokenType) {
         .STRING => return try Object.initString(self.allocator, lexer),
         .FALSE => return try Object.initBool(self.allocator, false),
