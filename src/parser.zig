@@ -122,7 +122,7 @@ fn equality(self: *Parser) ParserError!*Expr {
             std.log.err("Error parsing equality {!}\n", .{e});
             return e;
         };
-        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+        expr = Expr.init(self.allocator, .{ .binary = .{ .operator = operator, .left = expr, .right = right } }) catch |e| {
             std.log.err("Error parsing binary {!}\n", .{e});
             return ParserError.ParsingBinary;
         };
@@ -139,7 +139,7 @@ fn comparison(self: *Parser) ParserError!*Expr {
     while (self.match(&tokenTypes)) {
         const operator = self.previous();
         const right = self.term() catch |e| return e;
-        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+        expr = Expr.init(self.allocator, .{ .binary = .{ .operator = operator, .left = expr, .right = right } }) catch |e| {
             std.log.err("Error parsing binary {!}\n", .{e});
             return ParserError.ParsingBinary;
         };
@@ -153,7 +153,7 @@ fn term(self: *Parser) ParserError!*Expr {
     while (self.match(&tokenTypes)) {
         const operator = self.previous();
         const right = self.factor() catch |e| return e;
-        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+        expr = Expr.init(self.allocator, .{ .binary = .{ .operator = operator, .left = expr, .right = right } }) catch |e| {
             std.log.err("Error parsing binary {!}\n", .{e});
             return ParserError.ParsingBinary;
         };
@@ -167,7 +167,7 @@ fn factor(self: *Parser) ParserError!*Expr {
     while (self.match(&tokenTypes)) {
         const operator = self.previous();
         const right = self.unary() catch |e| return e;
-        expr = Expr.initBinary(self.allocator, operator, expr, right) catch |e| {
+        expr = Expr.init(self.allocator, .{ .binary = .{ .operator = operator, .left = expr, .right = right } }) catch |e| {
             std.log.err("Error parsing binary {!}\n", .{e});
             return ParserError.ParsingBinary;
         };
@@ -180,7 +180,7 @@ fn unary(self: *Parser) ParserError!*Expr {
     if (self.match(&tokenTypes)) {
         const operator = self.previous();
         const right = try self.unary();
-        return Expr.initUnary(self.allocator, right, operator) catch |e| {
+        return Expr.init(self.allocator, .{ .unary = .{ .right = right, .operator = operator } }) catch |e| {
             std.log.err("Error parsing unary {!}\n", .{e});
             return ParserError.ParsingUnary;
         };
@@ -195,7 +195,7 @@ fn primary(self: *Parser) ParserError!*Expr {
             std.log.err("Error parsing primary {!}\n", .{e});
             return ParserError.ParsingLiteral;
         };
-        const expr = Expr.initLiteral(self.allocator, token.lexer, literal) catch |e| {
+        const expr = Expr.init(self.allocator, .{ .literal = .{ .value_string = token.lexer, .value = literal } }) catch |e| {
             std.log.err("Error parsing literal {!}\n", .{e});
             return ParserError.ParsingLiteral;
         };
@@ -203,7 +203,7 @@ fn primary(self: *Parser) ParserError!*Expr {
     }
     var identifier = [_]TokenType{TokenType.IDENTIFIER};
     if (self.match(&identifier)) {
-        return Expr.initVariable(self.allocator, self.previous()) catch |e| {
+        return Expr.init(self.allocator, .{ .variable = .{ .name = self.previous() } }) catch |e| {
             std.log.err("Error parsing variable init {!}\n", .{e});
             return ParserError.ParsingVariable;
         };
@@ -212,7 +212,7 @@ fn primary(self: *Parser) ParserError!*Expr {
     if (self.match(&parType)) {
         const expr = self.expression() catch |e| return e;
         _ = self.consume(TokenType.RIGHT_PAREN, "Expr ')' after expression");
-        return Expr.initGrouping(self.allocator, expr) catch |e| {
+        return Expr.init(self.allocator, .{ .grouping = .{ .expression = expr } }) catch |e| {
             std.log.err("Error parsing primary {!}\n", .{e});
             return ParserError.ParsingPrimary;
         };

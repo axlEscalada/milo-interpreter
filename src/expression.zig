@@ -50,63 +50,6 @@ pub const Expr = union(ExprType) {
         return expr;
     }
 
-    pub fn initBinary(allocator: Allocator, op: token.Token, left: *Expr, right: *Expr) !*Expr {
-        // const binary = allocator.create(Binary) catch |e| {
-        //     std.log.err("Error {!}", .{e});
-        //     return error.InitializingExpression;
-        // };
-        const expr = allocator.create(Expr) catch |e| {
-            std.log.err("Error {!}", .{e});
-            return error.InitializingExpression;
-        };
-        const binary = Binary{ .operator = op, .left = left, .right = right };
-
-        expr.* = .{ .binary = binary };
-        // return Expr{ .binary = binary };
-        return expr;
-    }
-
-    pub fn initLiteral(allocator: Allocator, value_string: []const u8, value: *Object) !*Expr {
-        const literal = allocator.create(Expr) catch |e| {
-            std.log.err("Error {!}", .{e});
-            return error.InitializingLiteral;
-        };
-        literal.* = .{ .literal = .{ .value_string = value_string, .value = value } };
-        // return Expr{ .literal = literal };
-        return literal;
-    }
-
-    pub fn initGrouping(allocator: Allocator, group: *Expr) !*Expr {
-        const grouping = allocator.create(Expr) catch |e| {
-            std.log.err("Error {!}", .{e});
-            return error.InitializingGrouping;
-        };
-        grouping.* = .{ .grouping = .{ .expression = group } };
-        // return Expr{ .grouping = grouping };
-        return grouping;
-    }
-
-    pub fn initUnary(allocator: Allocator, right: *Expr, op: token.Token) !*Expr {
-        const unary = allocator.create(Expr) catch |e| {
-            std.log.err("Error {!}", .{e});
-            return error.InitializingUnary;
-        };
-        const u = Unary{ .operator = op, .right = right };
-        unary.* = .{ .unary = u };
-        // return Expr{ .unary = unary };
-        return unary;
-    }
-
-    pub fn initVariable(allocator: Allocator, name: token.Token) !*Expr {
-        const variable = allocator.create(Expr) catch |e| {
-            std.log.err("Error {!}", .{e});
-            return error.InitializingUnary;
-        };
-        variable.* = .{ .variable = .{ .name = name } };
-        // return Expr{ .variable = variable };
-        return variable;
-    }
-
     pub fn accept(this: Expr, visitor: anytype, comptime T: type) !T {
         return switch (this) {
             .binary => visitor.visitBinary(this),
@@ -115,7 +58,6 @@ pub const Expr = union(ExprType) {
             .grouping => visitor.visitGrouping(this),
             .variable => visitor.visitVariableExpr(this),
             .assign => visitor.visitAssignExpr(this),
-            // else => @panic("error accept token"),
         };
     }
 };
@@ -142,24 +84,15 @@ pub const Object = union(ObjectType) {
         const obj = try allocator.create(Object);
         obj.* = .{ .boolean = boolean };
         return obj;
-        // const obj = try allocator.create(bool);
-        // obj.* = boolean;
-        // return Object{ .boolean = obj };
     }
 
     pub fn initFloat(allocator: Allocator, float: f64) !*Object {
-        // const obj = try allocator.create(f64);
-        // obj.* = float;
-        // return Object{ .float = obj };
         const obj = try allocator.create(Object);
         obj.* = .{ .float = float };
         return obj;
     }
 
     pub fn initString(allocator: Allocator, string: []const u8) !*Object {
-        // const obj = try allocator.create([]const u8);
-        // obj.* = string;
-        // return Object{ .string = obj };
         const obj = try allocator.create(Object);
         obj.* = .{ .string = string };
         return obj;
