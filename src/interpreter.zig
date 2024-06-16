@@ -147,16 +147,11 @@ pub const Interpreter = struct {
         var value: ?*Object = null;
         if (stmt.variable.initializer) |it| {
             value = try self.evaluate(it);
-            // value = try self.allocator.create(Object);
-            // value.?.* = eval;
         }
-        try self.environment.define(stmt.variable.name.lexer, value);
-        std.debug.print("STORED: {any}\n", .{self.environment.get(stmt.variable.name.*)});
-        // std.debug.print("STORED: {any}\n", .{self.environment.get(stmt.variable.name.*)});
+        try self.environment.define(self.allocator, stmt.variable.name.lexer, value);
     }
 
     pub fn visitVariableExpr(self: *Interpreter, expr: Expr) !*Object {
-        std.debug.print("VAR A {any}\n", .{self.environment.get(expr.variable.name.*)});
         const variable = try self.environment.get(expr.variable.name.*);
         if (variable) |v| {
             return v;
@@ -279,15 +274,21 @@ pub const Environment = struct {
         return self.values.count();
     }
 
-    pub fn define(self: *Environment, name: []const u8, value: ?*Object) !void {
-        std.debug.print("ENV DEF POINTER {*}\n", .{self});
-        try self.values.put(name, value);
+    pub fn define(self: *Environment, allocator: Allocator, name: []const u8, value: ?*Object) !void {
+        const n = try allocator.alloc(u8, name.len);
+        @memcpy(n, name);
+        try self.values.put(n, value);
+    }
+
+    pub fn iterator(self: *Environment) void {
+        var it = self.values.iterator();
+        while (it.next()) |v| {
+            std.debug.print("KEY {s} VALUE {any}\n", .{ v.key_ptr.*, v.value_ptr.* });
+        }
     }
 
     pub fn get(self: *Environment, name: Token) !?*Object {
-        std.debug.print("ENV POINTER {*}\n", .{self});
         if (self.values.contains(name.lexer)) {
-            std.debug.print("variable does exist {s}\n", .{name.lexer});
             return self.values.get(name.lexer).?;
         }
         std.log.err("Use of undefined variable {s}\n", .{name.lexer});
@@ -304,7 +305,7 @@ test "expect save environment correctly" {
     const obj = try Object.initBool(allocator, true);
     defer allocator.destroy(obj);
 
-    try interpreter.environment.define("a", obj);
+    try interpreter.environment.define(allocator, "a", obj);
     const asd = try interpreter.tested("a");
     // const env_obj = interpreter.environment.get(Token{ .lexer = "a", .tokenType = TokenType.IDENTIFIER });
 

@@ -58,10 +58,6 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
     _ = try alloc.alloc(u8, 1024);
     var interpreter = Interpreter.init(alloc);
     defer interpreter.deinit();
-    // const z = Token{ .line = 1, .lexer = "z", .literal = null, .tokenType = TokenType.IDENTIFIER };
-    // std.debug.print("INTERPRET IS STORED A IN MAP {any}\n", .{interpreter.environment.get(z)});
-    // const obj = try Object.initBool(interpreter.allocator, true);
-    // try interpreter.environment.define("z", obj);
     while (true) {
         _ = try stdout.write(">> ");
         line = try stdin.readUntilDelimiterOrEof(&buffer, '\n') orelse "";
@@ -83,11 +79,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
             // const result = astPrinter.print(expr) catch |e| return e;
             // std.debug.print("AST print: {s}\n", .{result});
             // try interpreter.interpret(expr);
-            const name = Token{ .line = 1, .lexer = "a", .literal = null, .tokenType = TokenType.IDENTIFIER };
-            std.debug.print("PREV MAIN a is present {any}\n", .{interpreter.environment.get(name)});
             try interpreter.interpret(statements);
-            std.debug.print("POST MAIN a is present {any}\n", .{interpreter.environment.get(name)});
-            std.debug.print("SIZE ENV {d}\n", .{interpreter.environment.size()});
         }
 
         hadError = false;

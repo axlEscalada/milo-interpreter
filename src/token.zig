@@ -4,9 +4,9 @@ const Object = @import("expression.zig").Object;
 
 pub const Token = struct {
     tokenType: TokenType,
-    lexer: []const u8 = undefined,
-    line: u16 = undefined,
-    literal: ?Object = null,
+    lexer: []const u8,
+    line: u16,
+    literal: ?Object,
 
     pub fn init(allocator: Allocator, tokenType: TokenType, lexer: []const u8, line: u16, literal: ?Object) !*Token {
         const token = try allocator.create(Token);
