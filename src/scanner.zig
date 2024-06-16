@@ -16,21 +16,21 @@ const keywords = initKeywords();
 const Scanner = @This();
 
 source: []const u8,
-tokens: std.ArrayList(*Token),
+tokens: std.ArrayList(Token),
 start: u16 = 0,
 current: u16 = 0,
 line: u16 = 1,
 alloc: std.mem.Allocator = undefined,
 
 pub fn init(source: []const u8, alloc: std.mem.Allocator) Scanner {
-    return .{ .source = source, .alloc = alloc, .tokens = std.ArrayList(*Token).init(alloc) };
+    return .{ .source = source, .alloc = alloc, .tokens = std.ArrayList(Token).init(alloc) };
 }
 
 pub fn deinit(self: *Scanner) void {
     self.tokens.deinit();
 }
 
-pub fn scanTokens(self: *Scanner) !std.ArrayList(*Token) {
+pub fn scanTokens(self: *Scanner) !std.ArrayList(Token) {
     while (!self.isAtEnd()) {
         self.start = self.*.current;
         try self.scanToken();
@@ -175,21 +175,26 @@ fn match(self: *Scanner, expected: u8) bool {
     return true;
 }
 
-fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16) *Token {
-    // std.debug.print("CREATE TOKEN TYPE = {}, text = `{s}`, line = {}\n", .{ tokenType, text, line });
+fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16) Token {
     return self.createLiteralToken(tokenType, text, line, null);
 }
 
-fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16, literal: ?Object) *Token {
-    const token: *Token = self.alloc.create(Token) catch |e| {
-        std.debug.print("Error creating Token: {!}", .{e});
-        @panic("Error allocating token");
+fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16, literal: ?Object) Token {
+    _ = self;
+    // const token: *Token = self.alloc.create(Token) catch |e| {
+    //     std.debug.print("Error creating Token: {!}", .{e});
+    //     @panic("Error allocating token");
+    // };
+    //
+    // token.*.tokenType = tokenType;
+    // token.*.lexer = text;
+    // token.*.line = line;
+    // token.*.literal = literal;
+    // return token;
+    return .{
+        .tokenType = tokenType,
+        .lexer = text,
+        .line = line,
+        .literal = literal,
     };
-
-    // std.debug.print("LITERAL TOKEN TYPE = {}, text = {s}, line = {}\n", .{ tokenType, text, line });
-    token.*.tokenType = tokenType;
-    token.*.lexer = text;
-    token.*.line = line;
-    token.*.literal = literal;
-    return token;
 }

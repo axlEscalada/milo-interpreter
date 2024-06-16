@@ -74,7 +74,7 @@ pub const Return = struct {
 };
 
 pub const Variable = struct {
-    name: *Token,
+    name: Token,
     initializer: ?*Expr,
 };
 

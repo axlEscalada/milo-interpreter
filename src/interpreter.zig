@@ -44,21 +44,25 @@ pub const Interpreter = struct {
 
     fn stringify(self: *Interpreter, object: ?*Object) ![]const u8 {
         if (object) |ob| {
-            if (ob.* == Object.float) {
-                var text = try std.fmt.allocPrint(self.allocator, "{d}", .{ob.*.float});
-                if (std.mem.endsWith(u8, text, ".0")) {
-                    text = text[0 .. text.len - 2];
-                }
-                return text;
-            } else if (ob.* == Object.string) {
-                return ob.*.string;
-            } else if (ob.* == Object.boolean) {
-                if (ob.*.boolean) {
-                    return "true";
-                } else {
-                    return "false";
-                }
-            }
+            return switch (ob.*) {
+                Object.float => {
+                    var text = try std.fmt.allocPrint(self.allocator, "{d}", .{ob.*.float});
+                    if (std.mem.endsWith(u8, text, ".0")) {
+                        text = text[0 .. text.len - 2];
+                    }
+                    return text;
+                },
+                Object.string => {
+                    return ob.*.string;
+                },
+                Object.boolean => {
+                    if (ob.*.boolean) {
+                        return "true";
+                    } else {
+                        return "false";
+                    }
+                },
+            };
         }
 
         return "nonimopl";
@@ -152,10 +156,16 @@ pub const Interpreter = struct {
     }
 
     pub fn visitVariableExpr(self: *Interpreter, expr: Expr) !*Object {
-        const variable = try self.environment.get(expr.variable.name.*);
+        const variable = try self.environment.get(expr.variable.name);
         if (variable) |v| {
             return v;
         } else return error.UndefinedVariable;
+    }
+
+    pub fn visitAssignExpr(self: *Interpreter, expr: Expr) !*Object {
+        const value = try self.evaluate(expr.assign.value);
+        try self.environment.assign(expr.assign.name, value);
+        return value;
     }
 
     pub fn visitWhile(self: *Interpreter, stmt: *Stmt) !void {
@@ -285,6 +295,14 @@ pub const Environment = struct {
         while (it.next()) |v| {
             std.debug.print("KEY {s} VALUE {any}\n", .{ v.key_ptr.*, v.value_ptr.* });
         }
+    }
+
+    pub fn assign(self: *Environment, name: Token, value: *Object) !void {
+        if (self.values.contains(name.lexer)) {
+            try self.values.put(name.lexer, value);
+            return;
+        }
+        return error.UndefinedVariable;
     }
 
     pub fn get(self: *Environment, name: Token) !?*Object {

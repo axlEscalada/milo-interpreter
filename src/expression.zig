@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 const token = @import("token.zig");
 
 pub const Binary = struct {
-    operator: *token.Token,
+    operator: token.Token,
     left: *Expr,
     right: *Expr,
 };
@@ -18,12 +18,17 @@ pub const Grouping = struct {
 };
 
 pub const Unary = struct {
-    operator: *token.Token,
+    operator: token.Token,
     right: *Expr,
 };
 
 pub const Variable = struct {
-    name: *token.Token,
+    name: token.Token,
+};
+
+pub const Assign = struct {
+    name: token.Token,
+    value: *Expr,
 };
 
 pub const Expr = union(ExprType) {
@@ -32,19 +37,20 @@ pub const Expr = union(ExprType) {
     literal: Literal,
     grouping: Grouping,
     variable: Variable,
+    assign: Assign,
 
     pub const Self = @This();
 
-    // pub fn initExpr(allocator: Allocator, expr_type: anytype) !*Expr {
-    //     const expr = allocator.create(Expr) catch |e| {
-    //         std.log.err("Error {!}", .{e});
-    //         return error.InitializingExpression;
-    //     };
-    //     expr.* = expr_type;
-    //     return expr;
-    // }
+    pub fn init(allocator: Allocator, expr_type: anytype) !*Expr {
+        const expr = allocator.create(Expr) catch |e| {
+            std.log.err("Error {!}", .{e});
+            return error.InitializingExpression;
+        };
+        expr.* = expr_type;
+        return expr;
+    }
 
-    pub fn initBinary(allocator: Allocator, op: *token.Token, left: *Expr, right: *Expr) !*Expr {
+    pub fn initBinary(allocator: Allocator, op: token.Token, left: *Expr, right: *Expr) !*Expr {
         // const binary = allocator.create(Binary) catch |e| {
         //     std.log.err("Error {!}", .{e});
         //     return error.InitializingExpression;
@@ -80,7 +86,7 @@ pub const Expr = union(ExprType) {
         return grouping;
     }
 
-    pub fn initUnary(allocator: Allocator, right: *Expr, op: *token.Token) !*Expr {
+    pub fn initUnary(allocator: Allocator, right: *Expr, op: token.Token) !*Expr {
         const unary = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingUnary;
@@ -91,7 +97,7 @@ pub const Expr = union(ExprType) {
         return unary;
     }
 
-    pub fn initVariable(allocator: Allocator, name: *token.Token) !*Expr {
+    pub fn initVariable(allocator: Allocator, name: token.Token) !*Expr {
         const variable = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingUnary;
@@ -108,12 +114,13 @@ pub const Expr = union(ExprType) {
             .literal => visitor.visitLiteral(this),
             .grouping => visitor.visitGrouping(this),
             .variable => visitor.visitVariableExpr(this),
+            .assign => visitor.visitAssignExpr(this),
             // else => @panic("error accept token"),
         };
     }
 };
 
-pub const ExprType = enum { binary, unary, literal, grouping, variable };
+pub const ExprType = enum { binary, unary, literal, grouping, variable, assign };
 pub const ObjectType = enum { string, float, boolean };
 pub const Object = union(ObjectType) {
     string: []const u8,

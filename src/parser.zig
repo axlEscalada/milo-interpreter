@@ -11,7 +11,7 @@ const Stmt = @import("statement.zig").Stmt;
 pub const Parser = @This();
 
 current: usize = 0,
-tokens: std.ArrayList(*Token),
+tokens: std.ArrayList(Token),
 allocator: Allocator,
 
 pub fn parse(self: *Parser) ![]*Stmt {
@@ -67,7 +67,7 @@ fn expressionStatement(self: *Parser) !*Stmt {
     return stmt;
 }
 
-pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
+pub fn init(tokens: std.ArrayList(Token), allocator: Allocator) Parser {
     return .{
         .tokens = tokens,
         .allocator = allocator,
@@ -75,10 +75,39 @@ pub fn init(tokens: std.ArrayList(*Token), allocator: Allocator) Parser {
 }
 
 pub fn expression(self: *Parser) ParserError!*Expr {
-    return self.equality() catch |e| {
-        std.log.err("Error parsing expression {!}\n", .{e});
-        return ParserError.ParsingExpression;
-    };
+    return self.assignment();
+}
+
+fn assignment(self: *Parser) ParserError!*Expr {
+    const expr = try self.equality();
+
+    var token_type = [_]TokenType{TokenType.EQUAL};
+    if (self.match(&token_type)) {
+        const equals = self.previous();
+        const value = try self.assignment();
+
+        if (expr.* == Expr.variable) {
+            const name = expr.variable.name;
+            return Expr.init(self.allocator, .{ .assign = .{ .name = name, .value = value } }) catch |e| {
+                std.log.err("Error parsing assignment expression {any}\n", .{e});
+                return ParserError.ParsingAssign;
+            };
+        }
+        self.err(equals, "Invalid assignment target.");
+    }
+    return expr;
+}
+
+fn err(self: *Parser, token: Token, message: []const u8) void {
+    if (token.tokenType == TokenType.EOF) {
+        Logger.report(self.allocator, token.line, " at end", message);
+    } else {
+        const m = std.fmt.allocPrint(self.allocator, " at '{s}'", .{token.lexer}) catch |e| {
+            std.debug.print("Error {!}", .{e});
+            @panic("Error logging");
+        };
+        Logger.report(self.allocator, token.line, m, message);
+    }
 }
 
 fn equality(self: *Parser) ParserError!*Expr {
@@ -201,7 +230,7 @@ pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*O
     };
 }
 
-fn consume(self: *Parser, tokenType: TokenType, msg: []const u8) *Token {
+fn consume(self: *Parser, tokenType: TokenType, msg: []const u8) Token {
     if (self.check(tokenType)) return self.advance();
 
     Logger.report(self.allocator, self.peek().line, "Error", msg);
@@ -218,7 +247,7 @@ fn match(self: *Parser, types: []TokenType) bool {
     return false;
 }
 
-fn matchType(self: *Parser, types: []TokenType) ?*Token {
+fn matchType(self: *Parser, types: []TokenType) ?Token {
     for (types) |tp| {
         if (self.check(tp)) {
             const token = self.peek();
@@ -234,7 +263,7 @@ fn check(self: *Parser, tokenType: TokenType) bool {
     return self.peek().tokenType == tokenType;
 }
 
-fn advance(self: *Parser) *Token {
+fn advance(self: *Parser) Token {
     if (!self.isAtEnd()) self.current += 1;
     return self.previous();
 }
@@ -243,11 +272,11 @@ fn isAtEnd(self: *Parser) bool {
     return self.peek().tokenType == TokenType.EOF;
 }
 
-fn peek(self: *Parser) *Token {
+fn peek(self: *Parser) Token {
     return self.tokens.items[self.current];
 }
 
-fn previous(self: *Parser) *Token {
+fn previous(self: *Parser) Token {
     return self.tokens.items[self.current - 1];
 }
 
@@ -273,4 +302,5 @@ const ParserError = error{
     ParsingBinary,
     ParsingPrimary,
     ParsingVariable,
+    ParsingAssign,
 };
