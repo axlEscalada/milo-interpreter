@@ -46,9 +46,27 @@ fn varDeclaration(self: *Parser) !*Stmt {
 }
 
 fn statement(self: *Parser) !*Stmt {
-    var tokenTypes = [_]TokenType{TokenType.PRINT};
-    if (self.match(&tokenTypes)) return self.printStatement();
+    var print_type = [_]TokenType{TokenType.PRINT};
+    var block_type = [_]TokenType{TokenType.LEFT_BRACE};
+    if (self.match(&print_type)) return self.printStatement();
+    if (self.match(&block_type)) return Stmt.init(self.allocator, .{ .block = .{ .statements = try self.block() } });
+    std.debug.print("parsing statements\n", .{});
     return self.expressionStatement();
+}
+
+fn block(self: *Parser) anyerror![]*Stmt {
+    std.debug.print("init block\n", .{});
+    var statements = std.ArrayList(*Stmt).init(self.allocator);
+
+    while (!self.check(TokenType.RIGHT_BRACE) and !self.isAtEnd()) {
+        // _ = self.consume(TokenType.LEFT_BRACE, "Expect '} after block.");
+        const decl = try self.declaration();
+        if (decl) |decl_stmt| {
+            try statements.append(decl_stmt);
+        }
+    }
+    _ = self.consume(TokenType.RIGHT_BRACE, "Expect '} after block.");
+    return try statements.toOwnedSlice();
 }
 
 fn printStatement(self: *Parser) !*Stmt {

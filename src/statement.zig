@@ -17,7 +17,7 @@ pub const Stmt = union(StatementType) {
     variable: Variable,
     while_statement: While,
 
-    pub fn init(allocator: std.mem.Allocator, args: anytype) !*Stmt {
+    pub fn init(allocator: std.mem.Allocator, args: Stmt) !*Stmt {
         const stmt = try allocator.create(Stmt);
         stmt.* = args;
         return stmt;
@@ -39,7 +39,7 @@ pub const Stmt = union(StatementType) {
 };
 
 pub const Block = struct {
-    statements: []Stmt,
+    statements: []*Stmt,
 };
 
 pub const Class = struct {

@@ -5,6 +5,7 @@ const Object = @import("expression.zig").Object;
 const Stmt = @import("statement.zig").Stmt;
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
+const Environment = @import("environment.zig").Environment;
 
 pub const Interpreter = struct {
     allocator: Allocator,
@@ -21,7 +22,7 @@ pub const Interpreter = struct {
             std.log.err("Error while creating interpreter {any}\n", .{e});
             @panic("error while creating");
         };
-        interpreter.* = .{ .allocator = allocator, .environment = Environment.init(allocator) };
+        interpreter.* = .{ .allocator = allocator, .environment = Environment.init(allocator, null) };
         return interpreter;
     }
 
@@ -31,15 +32,9 @@ pub const Interpreter = struct {
     }
 
     pub fn interpret(self: *Interpreter, statements: []*Stmt) !void {
-        // std.debug.print("interpreter pointer addr {*}\n", .{&self});
-        // std.debug.print("env pointer addr {*}\n", .{&self.environment});
         for (statements) |st| {
             try st.accept(anyerror!void, self);
         }
-    }
-
-    pub fn tested(self: *Interpreter, name: []const u8) !?*Object {
-        return try getObject(self, name);
     }
 
     fn stringify(self: *Interpreter, object: ?*Object) ![]const u8 {
@@ -115,7 +110,12 @@ pub const Interpreter = struct {
     }
 
     pub fn visitPrint(self: *Interpreter, stmt: *Stmt) !void {
-        const value = try self.evaluate(stmt.print.expression);
+        const value = self.evaluate(stmt.print.expression) catch |err| {
+            if (err == error.UndefinedVariable) {
+                return;
+            }
+            return err;
+        };
         const str = try self.stringify(value);
         const file = std.io.getStdOut();
         _ = try file.write(str);
@@ -123,8 +123,7 @@ pub const Interpreter = struct {
     }
 
     pub fn visitBlock(self: *Interpreter, stmt: *Stmt) !void {
-        _ = self;
-        _ = stmt;
+        try self.executeBlock(stmt.block.statements, Environment.init(self.allocator, &self.environment));
     }
 
     pub fn visitClass(self: *Interpreter, stmt: *Stmt) !void {
@@ -173,16 +172,27 @@ pub const Interpreter = struct {
         _ = stmt;
     }
 
-    fn execute(self: *Interpreter, stmt: *Stmt) void {
-        stmt.accept(void, self);
-    }
-
     pub fn visitUnary(self: *Interpreter, expr: Expr) !*Object {
         const right = try self.evaluate(expr.unary.right);
         return switch (expr.unary.operator.tokenType) {
             .MINUS => right,
             else => @panic("PANIC UNARY"),
         };
+    }
+
+    fn executeBlock(self: *Interpreter, statements: []*Stmt, environment: Environment) !void {
+        const previous = self.environment;
+        self.environment = environment;
+
+        for (statements) |st| {
+            try self.execute(st);
+        }
+
+        self.environment = previous;
+    }
+
+    fn execute(self: *Interpreter, stmt: *Stmt) !void {
+        try stmt.accept(anyerror!void, self);
     }
 
     fn evaluate(self: *Interpreter, expr: *Expr) !*Object {
@@ -214,75 +224,19 @@ pub const Interpreter = struct {
     }
 };
 
-pub const Environment = struct {
-    values: std.StringHashMap(?*Object),
-
-    pub fn init(allocator: Allocator) Environment {
-        return .{
-            .values = std.StringHashMap(?*Object).init(allocator),
-        };
-    }
-
-    pub fn deinit(self: *Environment) void {
-        self.values.deinit();
-    }
-
-    pub fn size(self: *Environment) usize {
-        std.debug.print("CAPACITY {d}\n", .{self.values.capacity()});
-        return self.values.count();
-    }
-
-    pub fn define(self: *Environment, allocator: Allocator, name: []const u8, value: ?*Object) !void {
-        const n = try allocator.alloc(u8, name.len);
-        @memcpy(n, name);
-        try self.values.put(n, value);
-    }
-
-    pub fn iterator(self: *Environment) void {
-        var it = self.values.iterator();
-        while (it.next()) |v| {
-            std.debug.print("KEY {s} VALUE {any}\n", .{ v.key_ptr.*, v.value_ptr.* });
-        }
-    }
-
-    pub fn assign(self: *Environment, name: Token, value: *Object) !void {
-        if (self.values.contains(name.lexer)) {
-            try self.values.put(name.lexer, value);
-            return;
-        }
-        return error.UndefinedVariable;
-    }
-
-    pub fn get(self: *Environment, name: Token) !?*Object {
-        if (self.values.contains(name.lexer)) {
-            return self.values.get(name.lexer).?;
-        }
-        std.log.err("Use of undefined variable {s}\n", .{name.lexer});
-        return error.UndefinedVariable;
-    }
-};
-
 test "expect save environment correctly" {
     const allocator = std.testing.allocator;
-    const interpreter = Interpreter.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const interpreter = Interpreter.init(arena.allocator());
     defer interpreter.deinit();
-    std.debug.print("interpreter pointer addr {any}\n", .{&interpreter});
 
-    const obj = try Object.initBool(allocator, true);
-    defer allocator.destroy(obj);
+    const obj = try Object.initBool(arena.allocator(), true);
 
-    try interpreter.environment.define(allocator, "a", obj);
-    const asd = try interpreter.tested("a");
-    // const env_obj = interpreter.environment.get(Token{ .lexer = "a", .tokenType = TokenType.IDENTIFIER });
+    try interpreter.environment.define(arena.allocator(), "a", obj);
+    const env_obj = try interpreter.environment.get(Token{ .lexer = "a", .line = 1, .tokenType = TokenType.IDENTIFIER });
 
-    try std.testing.expectEqual(obj, asd);
-    // try std.testing.expectEqual(obj.boolean, asd.?.boolean);
-}
-
-fn getObject(visitor: *anyopaque, name: []const u8) !?*Object {
-    var it: *Interpreter = @ptrCast(@alignCast(visitor));
-    std.debug.print("interpreter pointer addr {any}\n", .{&it});
-    const a = Token{ .line = 1, .lexer = name, .literal = null, .tokenType = TokenType.IDENTIFIER };
-    std.debug.print("IS STORED A IN MAP {any}\n", .{it.environment.get(a)});
-    return it.environment.get(a);
+    try std.testing.expectEqual(obj, env_obj);
+    try std.testing.expectEqual(obj.boolean, env_obj.?.*.boolean);
 }

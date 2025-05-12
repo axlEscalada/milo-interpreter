@@ -180,20 +180,14 @@ fn createToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16
 }
 
 fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, line: u16, literal: ?Object) Token {
-    _ = self;
-    // const token: *Token = self.alloc.create(Token) catch |e| {
-    //     std.debug.print("Error creating Token: {!}", .{e});
-    //     @panic("Error allocating token");
-    // };
-    //
-    // token.*.tokenType = tokenType;
-    // token.*.lexer = text;
-    // token.*.line = line;
-    // token.*.literal = literal;
-    // return token;
+    const text_copy = self.alloc.dupe(u8, text) catch |e| {
+        std.debug.print("Error duplicating text: {!}", .{e});
+        @panic("Error duplicating text");
+    };
+    
     return .{
         .tokenType = tokenType,
-        .lexer = text,
+        .lexer = text_copy, 
         .line = line,
         .literal = literal,
     };

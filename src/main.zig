@@ -7,7 +7,7 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Interpreter = @import("interpreter.zig").Interpreter;
 const Environment = @import("interpreter.zig").Environment;
-const AstPrinter = @import("interpreter.zig").AstPrinter;
+const AstPrinter = @import("ast_printer.zig").AstPrinter;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const Expr = @import("expression.zig").Expr;
 const Binary = @import("expression.zig").Binary;
@@ -29,6 +29,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
     var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
     errdefer {
         std.debug.print("FREEING ARENA MEMORY\n", .{});
         arena.deinit();
@@ -41,7 +43,7 @@ pub fn main() !void {
         std.debug.print("Usage milo [script]", .{});
         std.process.exit(0);
     } else if (args.len == 2) {
-        try runFile(args[0], allocator);
+        try runFile(args[1], arena.allocator());
     } else {
         try runPrompt(arena.allocator());
         if (hadError) {
@@ -87,16 +89,45 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
 }
 
 fn runFile(path: []const u8, allocator: std.mem.Allocator) !void {
-    _ = allocator;
+    std.debug.print("FILE IS {s}\n", .{path});
     var file = try std.fs.cwd().openFile(path, .{});
-    var buf_reader = std.io.bufferedReader(file.reader());
-    var in_stream = buf_reader.reader();
+    defer file.close();
 
-    var buf: [1024]u8 = undefined;
+    var buffered = std.io.bufferedReader(file.reader());
+    var reader = buffered.reader();
 
-    while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        std.debug.print("Line: {s}", .{line});
+    var arr = std.ArrayList(u8).init(allocator);
+    defer arr.deinit();
+
+    var line_count: usize = 0;
+    var byte_count: usize = 0;
+    var interpreter = Interpreter.init(allocator);
+    defer interpreter.deinit();
+    while (true) {
+        reader.streamUntilDelimiter(arr.writer(), '\n', null) catch |err| switch (err) {
+            error.EndOfStream => break,
+            else => return err,
+        };
+        line_count += 1;
+        byte_count += arr.items.len;
     }
+    var scanner = Scanner.init(arr.items, allocator);
+    defer scanner.deinit();
+
+    const tokens = try scanner.scanTokens();
+    var parser = Parser.init(tokens, allocator);
+    // var astPrinter = AstPrinter{ .allocator = alloc };
+    // const expr = parser.expression() catch |e| {
+    //     std.log.err("Error while parsing prompt {any}\n", .{e});
+    //     return error.Prompt;
+    // };
+    const statements = try parser.parse();
+    // const result = astPrinter.print(expr) catch |e| return e;
+    // std.debug.print("AST print: {s}\n", .{result});
+    // try interpreter.interpret(expr);
+    try interpreter.interpret(statements);
+
+    std.debug.print("{d} lines, {d} bytes", .{ line_count, byte_count });
 }
 
 const RuntimeError = error{

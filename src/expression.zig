@@ -41,12 +41,13 @@ pub const Expr = union(ExprType) {
 
     pub const Self = @This();
 
-    pub fn init(allocator: Allocator, expr_type: anytype) !*Expr {
+    pub fn init(allocator: Allocator, expr_type: Expr) !*Expr {
         const expr = allocator.create(Expr) catch |e| {
             std.log.err("Error {!}", .{e});
             return error.InitializingExpression;
         };
         expr.* = expr_type;
+
         return expr;
     }
 
@@ -92,9 +93,16 @@ pub const Object = union(ObjectType) {
         return obj;
     }
 
-    pub fn initString(allocator: Allocator, string: []const u8) !*Object {
+    // pub fn initString(allocator: Allocator, string: []const u8) !*Object {
+    //     const obj = try allocator.create(Object);
+    //     obj.* = .{ .string = string };
+    //     return obj;
+    // }
+
+    pub fn initString(allocator: Allocator, value: []const u8) !*Object {
         const obj = try allocator.create(Object);
-        obj.* = .{ .string = string };
+        const str_copy = try allocator.dupe(u8, value);
+        obj.* = .{ .string = str_copy };
         return obj;
     }
 };
