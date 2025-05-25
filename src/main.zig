@@ -70,17 +70,13 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         defer scanner.deinit();
 
         const tokens = try scanner.scanTokens();
+        for (tokens.items) |t| {
+            std.debug.print("T -> {s}\n", .{t.lexer});
+
+        }
         var parser = Parser.init(tokens, alloc);
-        // var astPrinter = AstPrinter{ .allocator = alloc };
-        // const expr = parser.expression() catch |e| {
-        //     std.log.err("Error while parsing prompt {any}\n", .{e});
-        //     return error.Prompt;
-        // };
         const statements = try parser.parse();
         if (!hadError) {
-            // const result = astPrinter.print(expr) catch |e| return e;
-            // std.debug.print("AST print: {s}\n", .{result});
-            // try interpreter.interpret(expr);
             try interpreter.interpret(statements);
         }
 
@@ -116,15 +112,7 @@ fn runFile(path: []const u8, allocator: std.mem.Allocator) !void {
 
     const tokens = try scanner.scanTokens();
     var parser = Parser.init(tokens, allocator);
-    // var astPrinter = AstPrinter{ .allocator = alloc };
-    // const expr = parser.expression() catch |e| {
-    //     std.log.err("Error while parsing prompt {any}\n", .{e});
-    //     return error.Prompt;
-    // };
     const statements = try parser.parse();
-    // const result = astPrinter.print(expr) catch |e| return e;
-    // std.debug.print("AST print: {s}\n", .{result});
-    // try interpreter.interpret(expr);
     try interpreter.interpret(statements);
 
     std.debug.print("{d} lines, {d} bytes", .{ line_count, byte_count });

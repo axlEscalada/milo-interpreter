@@ -4,18 +4,23 @@ const Object = @import("expression.zig").Object;
 const Token = @import("token.zig").Token;
 
 pub const Environment = struct {
+    allocator: Allocator,
     enclosing: ?*Environment,
     values: std.StringHashMap(?*Object),
 
-    pub fn init(allocator: Allocator, enclosing: ?*Environment) Environment {
-        return .{
+    pub fn init(allocator: Allocator, enclosing: ?*Environment) !*Environment {
+        const env = try allocator.create(Environment);
+        env.* = .{
+            .allocator = allocator,
             .values = std.StringHashMap(?*Object).init(allocator),
             .enclosing = enclosing,
         };
+        return env;
     }
 
     pub fn deinit(self: *Environment) void {
         self.values.deinit();
+        self.allocator.destroy(self);
     }
 
     pub fn size(self: *Environment) usize {
@@ -52,7 +57,10 @@ pub const Environment = struct {
             return self.values.get(name.lexer).?;
         }
 
-        if (self.enclosing) |enc| return enc.get(name);
+        if (self.enclosing) |enc| {
+            std.log.info("Using enclosing env: {s}\n", .{name.lexer});
+            return enc.get(name);
+        }
 
         std.log.err("Use of undefined variable {s}\n", .{name.lexer});
         return error.UndefinedVariable;

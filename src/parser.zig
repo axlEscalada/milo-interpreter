@@ -59,7 +59,6 @@ fn block(self: *Parser) anyerror![]*Stmt {
     var statements = std.ArrayList(*Stmt).init(self.allocator);
 
     while (!self.check(TokenType.RIGHT_BRACE) and !self.isAtEnd()) {
-        // _ = self.consume(TokenType.LEFT_BRACE, "Expect '} after block.");
         const decl = try self.declaration();
         if (decl) |decl_stmt| {
             try statements.append(decl_stmt);

@@ -9,20 +9,20 @@ const Environment = @import("environment.zig").Environment;
 
 pub const Interpreter = struct {
     allocator: Allocator,
-    environment: Environment,
+    environment: *Environment,
 
-    // pub fn interpret(self: *Interpreter, expr: *Expr) !void {
-    //     const value = try self.evaluate(expr);
-    //     const str = try self.stringify(value);
-    //     std.debug.print("VALUE {s}\n", .{str});
-    // }
-    //
     pub fn init(allocator: Allocator) *Interpreter {
         const interpreter = allocator.create(Interpreter) catch |e| {
             std.log.err("Error while creating interpreter {any}\n", .{e});
             @panic("error while creating");
         };
-        interpreter.* = .{ .allocator = allocator, .environment = Environment.init(allocator, null) };
+
+        const global_env = Environment.init(allocator, null) catch |e| {
+            std.log.err("Error while creating global environment {any}\n", .{e});
+            @panic("error while creating");
+        };
+
+        interpreter.* = .{ .allocator = allocator, .environment = global_env };
         return interpreter;
     }
 
@@ -123,7 +123,10 @@ pub const Interpreter = struct {
     }
 
     pub fn visitBlock(self: *Interpreter, stmt: *Stmt) !void {
-        try self.executeBlock(stmt.block.statements, Environment.init(self.allocator, &self.environment));
+        var environment = try Environment.init(self.allocator, self.environment);
+        defer environment.deinit();
+
+        try self.executeBlock(stmt.block.statements, environment);
     }
 
     pub fn visitClass(self: *Interpreter, stmt: *Stmt) !void {
@@ -180,14 +183,14 @@ pub const Interpreter = struct {
         };
     }
 
-    fn executeBlock(self: *Interpreter, statements: []*Stmt, environment: Environment) !void {
+    fn executeBlock(self: *Interpreter, statements: []*Stmt, environment: *Environment) !void {
         const previous = self.environment;
         self.environment = environment;
+        errdefer self.environment = previous;
 
         for (statements) |st| {
             try self.execute(st);
         }
-
         self.environment = previous;
     }
 

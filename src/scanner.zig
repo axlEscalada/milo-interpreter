@@ -38,9 +38,6 @@ pub fn scanTokens(self: *Scanner) !std.ArrayList(Token) {
 
     const token = self.createToken(TokenType.EOF, "", self.line);
     try self.tokens.append(token);
-    // for (self.tokens.items) |t| {
-    //     std.debug.print("ITEMS: {s}\n", .{t.lexer});
-    // }
     return self.tokens;
 }
 
@@ -83,8 +80,6 @@ fn scanToken(self: *Scanner) !void {
 }
 
 fn char(self: *Scanner) !void {
-    std.debug.print("PEek char: {c} is alpha {}", .{ self.peek(), self.isAlphaNumeric(self.peek()) });
-    // _ = self.advance();
     if (self.isAlphaNumeric(self.peek()) and !self.isAlphaNumeric(self.peekNext())) {
         _ = self.advance();
         _ = self.advance();
@@ -141,11 +136,7 @@ fn string(self: *Scanner) !void {
     if (self.isAtEnd()) {
         Logger.report(self.alloc, self.line, "", "Unterminated string.");
     } else {
-        // The closing ".
         _ = self.advance();
-
-        // Trim the surrounding quotes.
-        // var value = self.source[self.start + 1 .. self.current - 1];
         try self.addToken(TokenType.STRING);
     }
 }
