@@ -84,6 +84,23 @@ fn expressionStatement(self: *Parser) !*Stmt {
     return stmt;
 }
 
+fn ifStatement(self: *Parser) !*Stmt {
+    _ = self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.");
+    const condition = try self.expression();
+    _ = self.consume(TokenType.RIGHT_BRACE, "Expect ')' after 'if' condition.");
+
+    const thenBranch = self.statement();
+    const elseBranch: ?*Stmt = blk: {
+        if (self.match(&[_]TokenType{TokenType.ELSE})) {
+            self.statement();
+        } else break :blk null;
+    };
+
+    const stmt = try self.allocator.create(Stmt);
+    stmt.* = .{ .if_statement = .{ .condition = condition, .thenBranch = thenBranch, .elseBranch = elseBranch } };
+    return stmt;
+}
+
 pub fn init(tokens: std.ArrayList(Token), allocator: Allocator) Parser {
     return .{
         .tokens = tokens,
@@ -96,7 +113,8 @@ pub fn expression(self: *Parser) ParserError!*Expr {
 }
 
 fn assignment(self: *Parser) ParserError!*Expr {
-    const expr = try self.equality();
+    // const expr = try self.equality();
+    const expr = try self.@"or"();
 
     var token_type = [_]TokenType{TokenType.EQUAL};
     if (self.match(&token_type)) {
@@ -237,12 +255,45 @@ fn primary(self: *Parser) ParserError!*Expr {
     @panic("Can't close parenthesis");
 }
 
+fn @"or"(self: *Parser) !*Expr {
+    var expr = try self.@"and"();
+
+    var tokens = [_]TokenType{TokenType.OR};
+    while (self.match(&tokens)) {
+        const operator = self.previous();
+        const right = try self.equality();
+
+        expr = Expr.init(self.allocator, .{ .logical = .{ .operator = operator, .left = expr, .right = right } }) catch |e| {
+            std.log.err("Error parsing logical expression {!}\n", .{e});
+            return ParserError.ParsingBinary;
+        };
+    }
+    return expr;
+}
+
+fn @"and"(self: *Parser) !*Expr {
+    var expr = try self.equality();
+
+    var tokens = [_]TokenType{TokenType.AND};
+    while (self.match(&tokens)) {
+        const operator = self.previous();
+        const right = try self.equality();
+
+        expr = Expr.init(self.allocator, .{ .logical = .{ .operator = operator, .left = expr, .right = right } }) catch |e| {
+            std.log.err("Error parsing logical expression {!}\n", .{e});
+            return ParserError.ParsingBinary;
+        };
+    }
+    return expr;
+}
+
 pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*Object {
     return switch (tokenType) {
         .STRING => return try Object.initString(self.allocator, lexer),
         .FALSE => return try Object.initBool(self.allocator, false),
         .TRUE => return try Object.initBool(self.allocator, true),
         .NUMBER => return try Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch @panic("Error parsing float")),
+        .NIL => return try Object.initNil(self.allocator),
         else => unreachable,
     };
 }

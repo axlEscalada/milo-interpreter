@@ -31,6 +31,12 @@ pub const Assign = struct {
     value: *Expr,
 };
 
+pub const Logical = struct {
+    left: *Expr,
+    operator: token.Token,
+    right: *Expr,
+};
+
 pub const Expr = union(ExprType) {
     binary: Binary,
     unary: Unary,
@@ -38,6 +44,7 @@ pub const Expr = union(ExprType) {
     grouping: Grouping,
     variable: Variable,
     assign: Assign,
+    logical: Logical,
 
     pub const Self = @This();
 
@@ -59,16 +66,18 @@ pub const Expr = union(ExprType) {
             .grouping => visitor.visitGrouping(this),
             .variable => visitor.visitVariableExpr(this),
             .assign => visitor.visitAssignExpr(this),
+            .logical => visitor.visitLogicalExpr(this),
         };
     }
 };
 
-pub const ExprType = enum { binary, unary, literal, grouping, variable, assign };
-pub const ObjectType = enum { string, float, boolean };
+pub const ExprType = enum { binary, unary, literal, grouping, variable, assign, logical };
+pub const ObjectType = enum { string, float, boolean, nil };
 pub const Object = union(ObjectType) {
     string: []const u8,
     float: f64,
     boolean: bool,
+    nil: ?u1,
 
     pub fn init(allocator: Allocator) !*Object {
         return allocator.create(Object) catch |e| {
@@ -97,6 +106,12 @@ pub const Object = union(ObjectType) {
         const obj = try allocator.create(Object);
         const str_copy = try allocator.dupe(u8, value);
         obj.* = .{ .string = str_copy };
+        return obj;
+    }
+
+    pub fn initNil(allocator: Allocator) !*Object {
+        const obj = try allocator.create(Object);
+        obj.* = .{ .nil = null };
         return obj;
     }
 };

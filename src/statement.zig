@@ -29,7 +29,7 @@ pub const Stmt = union(StatementType) {
             .class => visitor.visitClass(self),
             .expression => visitor.visitExpression(self),
             .function => visitor.visitFunction(self),
-            .if_statement => visitor.visitIf(self),
+            .if_statement => visitor.visitIfStmt(self),
             .print => visitor.visitPrint(self),
             .return_statement => visitor.visitReturn(self),
             .variable => visitor.visitVariableStmt(self),
@@ -61,7 +61,7 @@ pub const Function = struct {
 pub const If = struct {
     condition: *Expr,
     then_branch: *Stmt,
-    else_branch: *Stmt,
+    else_branch: ?*Stmt,
 };
 
 pub const Print = struct {

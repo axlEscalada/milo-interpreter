@@ -57,6 +57,9 @@ pub const Interpreter = struct {
                         return "false";
                     }
                 },
+                Object.nil => {
+                    return "nil";
+                },
             };
         }
 
@@ -139,9 +142,12 @@ pub const Interpreter = struct {
         _ = stmt;
     }
 
-    pub fn visitIf(self: *Interpreter, stmt: *Stmt) !void {
-        _ = self;
-        _ = stmt;
+    pub fn visitIfStmt(self: *Interpreter, stmt: *Stmt) !void {
+        if (self.isTruthy(try self.evaluate(stmt.if_statement.condition))) {
+            try self.execute(stmt.if_statement.then_branch);
+        } else if (stmt.if_statement.else_branch != null) {
+            try self.execute(stmt.if_statement.else_branch.?);
+        }
     }
 
     pub fn visitReturn(self: *Interpreter, stmt: *Stmt) !void {
@@ -173,6 +179,18 @@ pub const Interpreter = struct {
         const value = try self.evaluate(expr.assign.value);
         try self.environment.assign(expr.assign.name, value);
         return value;
+    }
+
+    pub fn visitLogicalExpr(self: *Interpreter, expr: Expr) !*Object {
+        const left = try self.evaluate(expr.logical.left);
+
+        if (expr.logical.operator.tokenType == TokenType.OR) {
+            if (self.isTruthy(left)) return left;
+        } else {
+            if (!self.isTruthy(left)) return left;
+        }
+
+        return try self.evaluate(expr.logical.right);
     }
 
     pub fn visitWhile(self: *Interpreter, stmt: *Stmt) !void {
@@ -222,9 +240,9 @@ pub const Interpreter = struct {
 
     fn isTruthy(self: *Interpreter, object: *Object) bool {
         _ = self;
-        if (object == null) return false;
-        return switch (object) {
-            .boolean => object.bool.*,
+        return switch (object.*) {
+            .boolean => object.*.boolean,
+            .nil => false,
             else => true,
         };
     }
