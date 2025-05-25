@@ -60,8 +60,8 @@ pub const Function = struct {
 
 pub const If = struct {
     condition: *Expr,
-    then_branch: *Stmt,
-    else_branch: ?*Stmt,
+    thenBranch: *Stmt,
+    elseBranch: ?*Stmt,
 };
 
 pub const Print = struct {

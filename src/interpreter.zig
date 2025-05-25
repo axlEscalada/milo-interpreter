@@ -143,10 +143,11 @@ pub const Interpreter = struct {
     }
 
     pub fn visitIfStmt(self: *Interpreter, stmt: *Stmt) !void {
+        std.debug.print("Visiting if statement\n", .{});
         if (self.isTruthy(try self.evaluate(stmt.if_statement.condition))) {
-            try self.execute(stmt.if_statement.then_branch);
-        } else if (stmt.if_statement.else_branch != null) {
-            try self.execute(stmt.if_statement.else_branch.?);
+            try self.execute(stmt.if_statement.thenBranch);
+        } else if (stmt.if_statement.elseBranch != null) {
+            try self.execute(stmt.if_statement.elseBranch.?);
         }
     }
 

@@ -48,6 +48,8 @@ fn varDeclaration(self: *Parser) !*Stmt {
 fn statement(self: *Parser) !*Stmt {
     var print_type = [_]TokenType{TokenType.PRINT};
     var block_type = [_]TokenType{TokenType.LEFT_BRACE};
+    var if_type = [_]TokenType{TokenType.IF};
+    if (self.match(&if_type)) return self.ifStatement();
     if (self.match(&print_type)) return self.printStatement();
     if (self.match(&block_type)) return Stmt.init(self.allocator, .{ .block = .{ .statements = try self.block() } });
     std.debug.print("parsing statements\n", .{});
@@ -87,12 +89,13 @@ fn expressionStatement(self: *Parser) !*Stmt {
 fn ifStatement(self: *Parser) !*Stmt {
     _ = self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.");
     const condition = try self.expression();
-    _ = self.consume(TokenType.RIGHT_BRACE, "Expect ')' after 'if' condition.");
+    _ = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after 'if' condition.");
 
-    const thenBranch = self.statement();
+    const thenBranch = try self.statement();
+    var else_type = [_]TokenType{TokenType.ELSE};
     const elseBranch: ?*Stmt = blk: {
-        if (self.match(&[_]TokenType{TokenType.ELSE})) {
-            self.statement();
+        if (self.match(&else_type)) {
+            break :blk try self.statement();
         } else break :blk null;
     };
 
