@@ -49,6 +49,9 @@ fn statement(self: *Parser) !*Stmt {
     var print_type = [_]TokenType{TokenType.PRINT};
     var block_type = [_]TokenType{TokenType.LEFT_BRACE};
     var if_type = [_]TokenType{TokenType.IF};
+    var while_type = [_]TokenType{TokenType.WHILE};
+
+    if (self.match(&while_type)) return self.whileStatement();
     if (self.match(&if_type)) return self.ifStatement();
     if (self.match(&print_type)) return self.printStatement();
     if (self.match(&block_type)) return Stmt.init(self.allocator, .{ .block = .{ .statements = try self.block() } });
@@ -91,16 +94,27 @@ fn ifStatement(self: *Parser) !*Stmt {
     const condition = try self.expression();
     _ = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after 'if' condition.");
 
-    const thenBranch = try self.statement();
+    const then_branch = try self.statement();
     var else_type = [_]TokenType{TokenType.ELSE};
-    const elseBranch: ?*Stmt = blk: {
+    const else_branch: ?*Stmt = blk: {
         if (self.match(&else_type)) {
             break :blk try self.statement();
         } else break :blk null;
     };
 
     const stmt = try self.allocator.create(Stmt);
-    stmt.* = .{ .if_statement = .{ .condition = condition, .thenBranch = thenBranch, .elseBranch = elseBranch } };
+    stmt.* = .{ .if_statement = .{ .condition = condition, .then_branch = then_branch, .else_branch = else_branch } };
+    return stmt;
+}
+
+fn whileStatement(self: *Parser) !*Stmt {
+    _ = self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.");
+    const condition = try self.expression();
+    _ = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after 'while' condition.");
+
+    const body = try self.statement();
+    const stmt = try self.allocator.create(Stmt);
+    stmt.* = .{ .while_statement = .{ .condition = condition, .body = body } };
     return stmt;
 }
 

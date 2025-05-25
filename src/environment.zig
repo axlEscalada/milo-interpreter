@@ -42,10 +42,12 @@ pub const Environment = struct {
 
     pub fn assign(self: *Environment, name: Token, value: *Object) !void {
         if (self.values.contains(name.lexer)) {
+            std.debug.print("Updating value of {s}\n", .{name.lexer});
             try self.values.put(name.lexer, value);
             return;
         }
         if (self.enclosing) |enc| {
+            std.debug.print("Enc: Updating value of {s}\n", .{name.lexer});
             try enc.assign(name, value);
             return;
         }

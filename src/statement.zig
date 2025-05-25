@@ -33,7 +33,7 @@ pub const Stmt = union(StatementType) {
             .print => visitor.visitPrint(self),
             .return_statement => visitor.visitReturn(self),
             .variable => visitor.visitVariableStmt(self),
-            .while_statement => visitor.visitWhile(self),
+            .while_statement => visitor.visitWhileStmt(self),
         };
     }
 };
@@ -60,8 +60,8 @@ pub const Function = struct {
 
 pub const If = struct {
     condition: *Expr,
-    thenBranch: *Stmt,
-    elseBranch: ?*Stmt,
+    then_branch: *Stmt,
+    else_branch: ?*Stmt,
 };
 
 pub const Print = struct {

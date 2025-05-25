@@ -145,9 +145,16 @@ pub const Interpreter = struct {
     pub fn visitIfStmt(self: *Interpreter, stmt: *Stmt) !void {
         std.debug.print("Visiting if statement\n", .{});
         if (self.isTruthy(try self.evaluate(stmt.if_statement.condition))) {
-            try self.execute(stmt.if_statement.thenBranch);
-        } else if (stmt.if_statement.elseBranch != null) {
-            try self.execute(stmt.if_statement.elseBranch.?);
+            try self.execute(stmt.if_statement.then_branch);
+        } else if (stmt.if_statement.else_branch != null) {
+            try self.execute(stmt.if_statement.else_branch.?);
+        }
+    }
+
+    pub fn visitWhileStmt(self: *Interpreter, stmt: *Stmt) !void {
+        std.debug.print("Visiting while statement\n", .{});
+        while (self.isTruthy(try self.evaluate(stmt.while_statement.condition))) {
+            try self.execute(stmt.while_statement.body);
         }
     }
 
@@ -192,11 +199,6 @@ pub const Interpreter = struct {
         }
 
         return try self.evaluate(expr.logical.right);
-    }
-
-    pub fn visitWhile(self: *Interpreter, stmt: *Stmt) !void {
-        _ = self;
-        _ = stmt;
     }
 
     pub fn visitUnary(self: *Interpreter, expr: Expr) !*Object {
