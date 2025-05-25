@@ -93,12 +93,6 @@ pub const Object = union(ObjectType) {
         return obj;
     }
 
-    // pub fn initString(allocator: Allocator, string: []const u8) !*Object {
-    //     const obj = try allocator.create(Object);
-    //     obj.* = .{ .string = string };
-    //     return obj;
-    // }
-
     pub fn initString(allocator: Allocator, value: []const u8) !*Object {
         const obj = try allocator.create(Object);
         const str_copy = try allocator.dupe(u8, value);

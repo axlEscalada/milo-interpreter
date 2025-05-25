@@ -112,7 +112,7 @@ pub const Interpreter = struct {
     pub fn visitPrint(self: *Interpreter, stmt: *Stmt) !void {
         const value = self.evaluate(stmt.print.expression) catch |err| {
             if (err == error.UndefinedVariable) {
-                return;
+                return err;
             }
             return err;
         };
@@ -150,6 +150,10 @@ pub const Interpreter = struct {
     }
 
     pub fn visitVariableStmt(self: *Interpreter, stmt: *Stmt) !void {
+        if (self.environment.contains(stmt.variable.name.lexer)) {
+            return error.VariableShadowing;
+        }
+
         var value: ?*Object = null;
         if (stmt.variable.initializer) |it| {
             value = try self.evaluate(it);
@@ -160,8 +164,9 @@ pub const Interpreter = struct {
     pub fn visitVariableExpr(self: *Interpreter, expr: Expr) !*Object {
         const variable = try self.environment.get(expr.variable.name);
         if (variable) |v| {
+            std.debug.print("Object {any} \n", .{v});
             return v;
-        } else return error.UndefinedVariable;
+        } else return error.NotInitializedVariable;
     }
 
     pub fn visitAssignExpr(self: *Interpreter, expr: Expr) !*Object {
@@ -204,8 +209,6 @@ pub const Interpreter = struct {
 
     fn isEqual(self: *Interpreter, a: Object, b: Object) bool {
         _ = self;
-        // if (a == null and b == null) return true;
-        // if (a == null) return false;
 
         if (a == Object.float and b == Object.float) {
             return a.float == b.float;

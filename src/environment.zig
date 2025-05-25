@@ -52,10 +52,23 @@ pub const Environment = struct {
         return error.UndefinedVariable;
     }
 
+    pub fn contains(self: *Environment, key: []const u8) bool {
+        if (self.values.contains(key)) {
+            return true;
+        } else if (self.enclosing) |enc| {
+            return enc.contains(key);
+        }
+
+        return false;
+    }
+
     pub fn get(self: *Environment, name: Token) !?*Object {
         if (self.values.contains(name.lexer)) {
             return self.values.get(name.lexer).?;
         }
+        // else if (self.enclosing == null) {
+        //     return error.MissingEnvironmentEntry;
+        // }
 
         if (self.enclosing) |enc| {
             std.log.info("Using enclosing env: {s}\n", .{name.lexer});

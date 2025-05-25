@@ -31,10 +31,10 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
 
-    errdefer {
-        std.debug.print("FREEING ARENA MEMORY\n", .{});
-        arena.deinit();
-    }
+    // errdefer {
+    //     std.debug.print("FREEING ARENA MEMORY\n", .{});
+    //     arena.deinit();
+    // }
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
@@ -70,10 +70,9 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         defer scanner.deinit();
 
         const tokens = try scanner.scanTokens();
-        for (tokens.items) |t| {
-            std.debug.print("T -> {s}\n", .{t.lexer});
-
-        }
+        // for (tokens.items) |t| {
+        //     std.debug.print("T -> {s}\n", .{t.lexer});
+        // }
         var parser = Parser.init(tokens, alloc);
         const statements = try parser.parse();
         if (!hadError) {
