@@ -158,6 +158,13 @@ pub const Interpreter = struct {
         }
     }
 
+    pub fn visitForStatement(self: *Interpreter, stmt: *Stmt) !void {
+        std.debug.print("Visiting for statement\n", .{});
+        while (self.isTruthy(try self.evaluate(stmt.@"for".condition))) {
+            try self.execute(stmt.@"for".body);
+        }
+    }
+
     pub fn visitReturn(self: *Interpreter, stmt: *Stmt) !void {
         _ = self;
         _ = stmt;
@@ -178,7 +185,6 @@ pub const Interpreter = struct {
     pub fn visitVariableExpr(self: *Interpreter, expr: Expr) !*Object {
         const variable = try self.environment.get(expr.variable.name);
         if (variable) |v| {
-            std.debug.print("Object {any} \n", .{v});
             return v;
         } else return error.NotInitializedVariable;
     }

@@ -4,7 +4,7 @@ const Expr = @import("expression.zig").Expr;
 const Interpreter = @import("interpreter.zig").Interpreter;
 const TokenType = @import("token.zig").TokenType;
 
-pub const StatementType = enum { block, class, expression, function, if_statement, print, return_statement, variable, while_statement };
+pub const StatementType = enum { block, class, expression, function, if_statement, print, return_statement, variable, while_statement, @"for" };
 
 pub const Stmt = union(StatementType) {
     block: Block,
@@ -16,6 +16,7 @@ pub const Stmt = union(StatementType) {
     return_statement: Return,
     variable: Variable,
     while_statement: While,
+    @"for": For,
 
     pub fn init(allocator: std.mem.Allocator, args: Stmt) !*Stmt {
         const stmt = try allocator.create(Stmt);
@@ -34,6 +35,7 @@ pub const Stmt = union(StatementType) {
             .return_statement => visitor.visitReturn(self),
             .variable => visitor.visitVariableStmt(self),
             .while_statement => visitor.visitWhileStmt(self),
+            .@"for" => visitor.visitForStatement(self),
         };
     }
 };
@@ -79,6 +81,11 @@ pub const Variable = struct {
 };
 
 pub const While = struct {
+    condition: *Expr,
+    body: *Stmt,
+};
+
+pub const For = struct {
     condition: *Expr,
     body: *Stmt,
 };
