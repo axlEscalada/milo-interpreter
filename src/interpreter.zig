@@ -207,7 +207,7 @@ pub const Interpreter = struct {
         return switch (callee.*) {
             .callable => {
                 if (arguments.items.len != callee.callable.arity()) {
-                    std.log.err("Expected {d} arguments but got {d}.\n", .{ arguments.items.len, callee.callable.arity() });
+                    std.log.err("Expected {d} arguments but got {d}.\n", .{ callee.callable.arity(), arguments.items.len });
                     return error.UnexpectedArgsSize;
                 }
                 return callee.callable.call(self, try arguments.toOwnedSlice());

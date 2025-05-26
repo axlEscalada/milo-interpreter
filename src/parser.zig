@@ -53,12 +53,10 @@ fn statement(self: *Parser) !*Stmt {
     if (self.match(&.{TokenType.PRINT})) return self.printStatement();
     if (self.match(&.{TokenType.LEFT_BRACE})) return Stmt.init(self.allocator, .{ .block = .{ .statements = try self.block() } });
 
-    std.debug.print("parsing statements\n", .{});
     return self.expressionStatement();
 }
 
 fn block(self: *Parser) anyerror![]*Stmt {
-    std.debug.print("init block\n", .{});
     var statements = std.ArrayList(*Stmt).init(self.allocator);
 
     while (!self.check(TokenType.RIGHT_BRACE) and !self.isAtEnd()) {

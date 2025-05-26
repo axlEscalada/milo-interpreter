@@ -84,7 +84,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
 }
 
 fn runFile(path: []const u8, allocator: std.mem.Allocator) !void {
-    std.debug.print("FILE IS {s}\n", .{path});
+    std.debug.print("\x1b[36mInterpreted file: {s}\x1b[0m \n\n", .{path});
     var file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
@@ -114,7 +114,7 @@ fn runFile(path: []const u8, allocator: std.mem.Allocator) !void {
     const statements = try parser.parse();
     try interpreter.interpret(statements);
 
-    std.debug.print("{d} lines, {d} bytes", .{ line_count, byte_count });
+    std.debug.print("\n\x1b[36m----------------------- \x1b[33m{d}\x1b[36m lines, \x1b[33m{d}\x1b[36m bytes \x1b[36m-----------------------\x1b[0m", .{ line_count, byte_count });
 }
 
 const RuntimeError = error{
