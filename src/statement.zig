@@ -32,7 +32,7 @@ pub const Stmt = union(StatementType) {
             .function => visitor.visitFunctionStmt(self),
             .if_statement => visitor.visitIfStmt(self),
             .print => visitor.visitPrint(self),
-            .return_statement => visitor.visitReturn(self),
+            .return_statement => visitor.visitReturnStatement(self),
             .variable => visitor.visitVariableStmt(self),
             .while_statement => visitor.visitWhileStmt(self),
             .@"for" => visitor.visitForStatement(self),
@@ -72,7 +72,7 @@ pub const Print = struct {
 
 pub const Return = struct {
     keyword: Token,
-    value: *Expr,
+    value: ?*Expr,
 };
 
 pub const Variable = struct {

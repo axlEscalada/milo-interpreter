@@ -11,6 +11,7 @@ pub const Interpreter = struct {
     allocator: Allocator,
     globals: *Environment,
     environment: *Environment,
+    return_value: ?*Object,
 
     pub fn init(allocator: Allocator) !*Interpreter {
         const interpreter = allocator.create(Interpreter) catch |e| {
@@ -31,7 +32,7 @@ pub const Interpreter = struct {
 
         try global_env.define(allocator, "clock", clock_object);
 
-        interpreter.* = .{ .allocator = allocator, .environment = global_env, .globals = global_env };
+        interpreter.* = .{ .allocator = allocator, .environment = global_env, .globals = global_env, .return_value = null };
         return interpreter;
     }
 
@@ -151,12 +152,11 @@ pub const Interpreter = struct {
     }
 
     pub fn visitFunctionStmt(self: *Interpreter, stmt: *Stmt) !void {
-        const function = MiloFunction.init(self.allocator, stmt);
+        const function = MiloFunction.init(self.allocator, stmt, self.environment);
         try self.environment.define(self.allocator, stmt.function.name.lexer, try Object.initCallable(self.allocator, function.callable()));
     }
 
     pub fn visitIfStmt(self: *Interpreter, stmt: *Stmt) !void {
-        std.debug.print("Visiting if statement\n", .{});
         if (self.isTruthy(try self.evaluate(stmt.if_statement.condition))) {
             try self.execute(stmt.if_statement.then_branch);
         } else if (stmt.if_statement.else_branch != null) {
@@ -165,22 +165,26 @@ pub const Interpreter = struct {
     }
 
     pub fn visitWhileStmt(self: *Interpreter, stmt: *Stmt) !void {
-        std.debug.print("Visiting while statement\n", .{});
         while (self.isTruthy(try self.evaluate(stmt.while_statement.condition))) {
             try self.execute(stmt.while_statement.body);
         }
     }
 
     pub fn visitForStatement(self: *Interpreter, stmt: *Stmt) !void {
-        std.debug.print("Visiting for statement\n", .{});
         while (self.isTruthy(try self.evaluate(stmt.@"for".condition))) {
             try self.execute(stmt.@"for".body);
         }
     }
 
-    pub fn visitReturn(self: *Interpreter, stmt: *Stmt) !void {
-        _ = self;
-        _ = stmt;
+    pub fn visitReturnStatement(self: *Interpreter, stmt: *Stmt) !void {
+        const value = blk: {
+            if (stmt.return_statement.value != null) {
+                break :blk try self.evaluate(stmt.return_statement.value.?);
+            } else break :blk null;
+        };
+
+        self.return_value = value;
+        return CallErr.Return;
     }
 
     pub fn visitVariableStmt(self: *Interpreter, stmt: *Stmt) !void {
@@ -294,6 +298,7 @@ pub const Interpreter = struct {
 const CallErr = error{
     CallError,
     OutOfMemory,
+    Return,
 };
 
 pub const Callable = struct {
@@ -353,12 +358,14 @@ const ClockFunction = struct {
 const MiloFunction = struct {
     allocator: Allocator,
     declaration: *Stmt,
+    closure: *Environment,
 
-    fn init(allocator: Allocator, declaration: *Stmt) *MiloFunction {
+    fn init(allocator: Allocator, declaration: *Stmt, closure: *Environment) *MiloFunction {
         const function = allocator.create(MiloFunction) catch unreachable;
         function.* = MiloFunction{
             .allocator = allocator,
             .declaration = declaration,
+            .closure = closure,
         };
         return function;
     }
@@ -370,7 +377,7 @@ const MiloFunction = struct {
 
     fn call(ptr: *anyopaque, interpreter: *Interpreter, arguments: []*Object) CallErr!*Object {
         const self: *MiloFunction = @ptrCast(@alignCast(ptr));
-        const environment = Environment.init(self.allocator, interpreter.globals) catch |e| {
+        const environment = Environment.init(self.allocator, self.closure) catch |e| {
             std.log.err("Error {!}\n", .{e});
             return CallErr.CallError;
         };
@@ -379,8 +386,12 @@ const MiloFunction = struct {
             try environment.define(self.allocator, param.lexer, arguments[i]);
         }
 
-        interpreter.executeBlock(self.declaration.function.body, environment) catch return CallErr.CallError;
-
+        interpreter.executeBlock(self.declaration.function.body, environment) catch |err| switch (err) {
+            CallErr.Return => {
+                return interpreter.return_value orelse try Object.initNil(self.allocator);
+            },
+            else => return CallErr.CallError,
+        };
         return try Object.initNil(self.allocator);
     }
 

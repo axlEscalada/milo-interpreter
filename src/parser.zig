@@ -48,9 +48,10 @@ fn varDeclaration(self: *Parser) !*Stmt {
 fn statement(self: *Parser) !*Stmt {
     if (self.match(&.{TokenType.FUN})) return self.functionStatement("function");
     if (self.match(&.{TokenType.FOR})) return self.forStatement();
-    if (self.match(&.{TokenType.WHILE})) return self.whileStatement();
     if (self.match(&.{TokenType.IF})) return self.ifStatement();
     if (self.match(&.{TokenType.PRINT})) return self.printStatement();
+    if (self.match(&.{TokenType.RETURN})) return self.returnStatement();
+    if (self.match(&.{TokenType.WHILE})) return self.whileStatement();
     if (self.match(&.{TokenType.LEFT_BRACE})) return Stmt.init(self.allocator, .{ .block = .{ .statements = try self.block() } });
 
     return self.expressionStatement();
@@ -188,6 +189,19 @@ fn functionStatement(self: *Parser, kind: []const u8) !*Stmt {
     return Stmt.init(self.allocator, .{ .function = .{ .name = name, .body = body, .params = try parements.toOwnedSlice() } });
 }
 
+fn returnStatement(self: *Parser) !*Stmt {
+    const keyword = self.previous();
+
+    const expr = blk: {
+        if (!self.check(TokenType.SEMICOLON)) {
+            break :blk try self.expression();
+        } else break :blk null;
+    };
+    _ = self.consume(TokenType.SEMICOLON, "Expect ';' after return value.");
+
+    return Stmt.init(self.allocator, .{ .return_statement = .{ .keyword = keyword, .value = expr } });
+}
+
 pub fn init(tokens: std.ArrayList(Token), allocator: Allocator) Parser {
     return .{
         .tokens = tokens,
@@ -296,7 +310,7 @@ fn factor(self: *Parser) ParserError!*Expr {
 }
 
 fn unary(self: *Parser) ParserError!*Expr {
-    if (self.match(&.{ TokenType.BANG, TokenType.LESS })) {
+    if (self.match(&.{ TokenType.BANG, TokenType.MINUS })) {
         const operator = self.previous();
         const right = try self.unary();
         return Expr.init(self.allocator, .{ .unary = .{ .right = right, .operator = operator } }) catch |e| {
@@ -408,7 +422,10 @@ pub fn createLiteral(self: *Parser, tokenType: TokenType, lexer: []const u8) !*O
         .STRING => return try Object.initString(self.allocator, lexer),
         .FALSE => return try Object.initBool(self.allocator, false),
         .TRUE => return try Object.initBool(self.allocator, true),
-        .NUMBER => return try Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch @panic("Error parsing float")),
+        .NUMBER => return Object.initFloat(self.allocator, std.fmt.parseFloat(f64, lexer) catch |e| {
+            std.log.err("Error parsin to float value: `{s}`", .{lexer});
+            return e;
+        }),
         .NIL => return try Object.initNil(self.allocator),
         else => unreachable,
     };

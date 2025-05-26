@@ -31,11 +31,6 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
 
-    // errdefer {
-    //     std.debug.print("FREEING ARENA MEMORY\n", .{});
-    //     arena.deinit();
-    // }
-
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
@@ -70,9 +65,8 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
         defer scanner.deinit();
 
         const tokens = try scanner.scanTokens();
-        // for (tokens.items) |t| {
-        //     std.debug.print("T -> {s}\n", .{t.lexer});
-        // }
+        // printTokens(tokens);
+
         var parser = Parser.init(tokens, alloc);
         const statements = try parser.parse();
         if (!hadError) {
@@ -85,36 +79,35 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
 
 fn runFile(path: []const u8, allocator: std.mem.Allocator) !void {
     std.debug.print("\x1b[36mInterpreted file: {s}\x1b[0m \n\n", .{path});
-    var file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
 
-    var buffered = std.io.bufferedReader(file.reader());
-    var reader = buffered.reader();
+    const file_contents = try std.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024);
+    defer allocator.free(file_contents);
 
-    var arr = std.ArrayList(u8).init(allocator);
-    defer arr.deinit();
-
-    var line_count: usize = 0;
-    var byte_count: usize = 0;
     var interpreter = try Interpreter.init(allocator);
     defer interpreter.deinit();
-    while (true) {
-        reader.streamUntilDelimiter(arr.writer(), '\n', null) catch |err| switch (err) {
-            error.EndOfStream => break,
-            else => return err,
-        };
-        line_count += 1;
-        byte_count += arr.items.len;
-    }
-    var scanner = Scanner.init(arr.items, allocator);
+
+    var scanner = Scanner.init(file_contents, allocator);
     defer scanner.deinit();
 
     const tokens = try scanner.scanTokens();
+    // printTokens(tokens);
+
     var parser = Parser.init(tokens, allocator);
     const statements = try parser.parse();
     try interpreter.interpret(statements);
 
-    std.debug.print("\n\x1b[36m----------------------- \x1b[33m{d}\x1b[36m lines, \x1b[33m{d}\x1b[36m bytes \x1b[36m-----------------------\x1b[0m", .{ line_count, byte_count });
+    var line_count: usize = 1;
+    for (file_contents) |c| {
+        if (c == '\n') line_count += 1;
+    }
+
+    std.debug.print("\n\x1b[36m----------------------- \x1b[33m{d}\x1b[36m lines, \x1b[33m{d}\x1b[36m bytes \x1b[36m-----------------------\x1b[0m", .{ line_count, file_contents.len });
+}
+
+fn printTokens(tokens: std.ArrayList(Token)) void {
+    for (tokens.items) |t| {
+        std.debug.print("T {s} -> {s}\n", .{ @tagName(t.tokenType), t.lexer });
+    }
 }
 
 const RuntimeError = error{

@@ -54,7 +54,7 @@ fn scanToken(self: *Scanner) !void {
         '}' => try self.addToken(TokenType.RIGHT_BRACE),
         ',' => try self.addToken(TokenType.COMMA),
         '.' => try self.addToken(TokenType.DOT),
-        '-' => if (self.isDigit(self.peekNext())) try self.number() else try self.addToken(TokenType.MINUS),
+        '-' => try self.addToken(TokenType.MINUS),
         '+' => try self.addToken(TokenType.PLUS),
         ';' => try self.addToken(TokenType.SEMICOLON),
         '*' => try self.addToken(TokenType.STAR),
@@ -110,9 +110,6 @@ fn isDigit(self: *Scanner, c: u8) bool {
 }
 
 fn number(self: *Scanner) !void {
-    if (self.peek() == '-' and self.isDigit(self.peekNext())) {
-        _ = self.advance();
-    }
     while (self.isDigit(self.peek())) _ = self.advance();
 
     if (self.peek() == '.' and self.isDigit(self.peekNext())) {
@@ -123,7 +120,7 @@ fn number(self: *Scanner) !void {
 }
 
 fn peekNext(self: *Scanner) u8 {
-    if (self.current + 1 >= self.source.len) return '\\';
+    if (self.current + 1 >= self.source.len) return 0;
     return self.source[self.current + 1];
 }
 
@@ -142,7 +139,7 @@ fn string(self: *Scanner) !void {
 }
 
 fn peek(self: *Scanner) u8 {
-    if (self.isAtEnd()) return '\\';
+    if (self.isAtEnd()) return 0;
     return self.source[self.current];
 }
 
@@ -175,10 +172,10 @@ fn createLiteralToken(self: *Scanner, tokenType: TokenType, text: []const u8, li
         std.debug.print("Error duplicating text: {!}", .{e});
         @panic("Error duplicating text");
     };
-    
+
     return .{
         .tokenType = tokenType,
-        .lexer = text_copy, 
+        .lexer = text_copy,
         .line = line,
         .literal = literal,
     };
