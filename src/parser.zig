@@ -164,7 +164,14 @@ fn forStatement(self: *Parser) !*Stmt {
 
 fn functionStatement(self: *Parser, kind: []const u8) !*Stmt {
     const alloc_print = try std.fmt.allocPrint(self.allocator, "Expect {s} name.", .{kind});
-    const name = self.consume(TokenType.IDENTIFIER, alloc_print);
+    const name = blk: {
+        if (self.check(TokenType.IDENTIFIER)) {
+            break :blk self.consume(TokenType.IDENTIFIER, alloc_print);
+        } else {
+            const token_ptr = try Token.init(self.allocator, TokenType.IDENTIFIER, "anonymous-fn", 0, null);
+            break :blk token_ptr.*;
+        }
+    };
 
     const expect_paren = try std.fmt.allocPrint(self.allocator, "Expect '(' after {s} name.", .{kind});
     _ = self.consume(TokenType.LEFT_PAREN, expect_paren);
@@ -187,6 +194,39 @@ fn functionStatement(self: *Parser, kind: []const u8) !*Stmt {
     _ = self.consume(TokenType.LEFT_BRACE, expect_left_brace);
     const body = try self.block();
     return Stmt.init(self.allocator, .{ .function = .{ .name = name, .body = body, .params = try parements.toOwnedSlice() } });
+}
+
+fn functionExpression(self: *Parser) !*Expr {
+    // Handle optional name - for anonymous functions this will be empty
+    const name = blk: {
+        if (self.check(TokenType.IDENTIFIER)) {
+            break :blk self.consume(TokenType.IDENTIFIER, "Expect function name.");
+        } else {
+            const token_ptr = try Token.init(self.allocator, TokenType.IDENTIFIER, "anonymous", 0, null);
+            break :blk token_ptr.*;
+        }
+    };
+
+    _ = self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'fun'.");
+
+    var parameters = std.ArrayList(Token).init(self.allocator);
+
+    if (!self.check(TokenType.RIGHT_PAREN)) {
+        try parameters.append(self.consume(TokenType.IDENTIFIER, "Expect parameter name"));
+        while (self.match(&.{TokenType.COMMA})) {
+            if (parameters.items.len >= 255) {
+                return error.ExceededArgs;
+            }
+            try parameters.append(self.consume(TokenType.IDENTIFIER, "Expect parameter name"));
+        }
+    }
+    _ = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.");
+
+    _ = self.consume(TokenType.LEFT_BRACE, "Expect '{' before function body.");
+    const body = try self.block();
+
+    // Return as expression, not statement
+    return Expr.init(self.allocator, .{ .function = .{ .name = name, .body = body, .params = try parameters.toOwnedSlice() } });
 }
 
 fn returnStatement(self: *Parser) !*Stmt {
@@ -214,7 +254,6 @@ pub fn expression(self: *Parser) ParserError!*Expr {
 }
 
 fn assignment(self: *Parser) ParserError!*Expr {
-    // const expr = try self.equality();
     const expr = try self.@"or"();
 
     if (self.match(&.{TokenType.EQUAL})) {
@@ -370,6 +409,14 @@ fn primary(self: *Parser) ParserError!*Expr {
         };
         return expr;
     }
+
+    if (self.match(&.{TokenType.FUN})) {
+        return self.functionExpression() catch |e| {
+            std.log.err("Error parsing function init {!}\n", .{e});
+            return ParserError.ParsingVariable;
+        };
+    }
+
     if (self.match(&.{TokenType.IDENTIFIER})) {
         return Expr.init(self.allocator, .{ .variable = .{ .name = self.previous() } }) catch |e| {
             std.log.err("Error parsing variable init {!}\n", .{e});

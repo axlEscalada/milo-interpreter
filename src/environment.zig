@@ -57,9 +57,10 @@ pub const Environment = struct {
     pub fn contains(self: *Environment, key: []const u8) bool {
         if (self.values.contains(key)) {
             return true;
-        } else if (self.enclosing) |enc| {
-            return enc.contains(key);
         }
+        // else if (self.enclosing) |enc| {
+        //     return enc.contains(key);
+        // }
 
         return false;
     }
@@ -70,11 +71,10 @@ pub const Environment = struct {
         }
 
         if (self.enclosing) |enc| {
-            // std.log.info("Using enclosing env: {s}\n", .{name.lexer});
             return enc.get(name);
         }
 
-        std.log.err("Use of undefined variable {s}\n", .{name.lexer});
+        std.log.err("Use of undefined identifier `{s}`.\n", .{name.lexer});
         return error.UndefinedVariable;
     }
 };

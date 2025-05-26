@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const token = @import("token.zig");
+const statement = @import("statement.zig");
 const Callable = @import("interpreter.zig").Callable;
 
 pub const Binary = struct {
@@ -44,6 +45,12 @@ pub const Call = struct {
     arguments: []*Expr,
 };
 
+pub const Function = struct {
+    name: token.Token,
+    params: []token.Token,
+    body: []*statement.Stmt,
+};
+
 pub const Expr = union(ExprType) {
     binary: Binary,
     unary: Unary,
@@ -53,6 +60,7 @@ pub const Expr = union(ExprType) {
     assign: Assign,
     logical: Logical,
     call: Call,
+    function: Function,
 
     pub const Self = @This();
 
@@ -76,11 +84,12 @@ pub const Expr = union(ExprType) {
             .assign => visitor.visitAssignExpr(this),
             .logical => visitor.visitLogicalExpr(this),
             .call => visitor.visitCallExpr(this),
+            .function => visitor.visitFunctionExpr(this),
         };
     }
 };
 
-pub const ExprType = enum { binary, unary, literal, grouping, variable, assign, logical, call };
+pub const ExprType = enum { binary, unary, literal, grouping, variable, assign, logical, call, function };
 pub const ObjectType = enum { string, float, boolean, nil, callable };
 pub const Object = union(ObjectType) {
     string: []const u8,

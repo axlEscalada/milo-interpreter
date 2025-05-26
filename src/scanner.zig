@@ -133,8 +133,9 @@ fn string(self: *Scanner) !void {
     if (self.isAtEnd()) {
         Logger.report(self.alloc, self.line, "", "Unterminated string.");
     } else {
-        _ = self.advance();
+        self.start += 1;
         try self.addToken(TokenType.STRING);
+        _ = self.advance();
     }
 }
 

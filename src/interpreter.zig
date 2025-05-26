@@ -72,7 +72,6 @@ pub const Interpreter = struct {
                 },
                 Object.callable => {
                     return try std.fmt.allocPrint(self.allocator, "<native fn@{*}>", .{ob.callable.ptr});
-                    // return "<native fn>";
                 },
             };
         }
@@ -97,6 +96,12 @@ pub const Interpreter = struct {
             .MINUS => return -right.double,
             else => unreachable,
         };
+    }
+
+    pub fn visitFunctionExpr(self: *Interpreter, expr: Expr) !*Object {
+        const temp_stmt = try Stmt.init(self.allocator, .{ .function = .{ .name = expr.function.name, .body = expr.function.body, .params = expr.function.params } });
+        const function = MiloFunction.init(self.allocator, temp_stmt, self.environment);
+        return try Object.initCallable(self.allocator, function.callable());
     }
 
     pub fn visitBinary(self: *Interpreter, expr: Expr) anyerror!*Object {
