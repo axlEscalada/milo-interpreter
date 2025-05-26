@@ -46,6 +46,7 @@ fn varDeclaration(self: *Parser) !*Stmt {
 }
 
 fn statement(self: *Parser) !*Stmt {
+    if (self.match(&.{TokenType.FUN})) return self.functionStatement("function");
     if (self.match(&.{TokenType.FOR})) return self.forStatement();
     if (self.match(&.{TokenType.WHILE})) return self.whileStatement();
     if (self.match(&.{TokenType.IF})) return self.ifStatement();
@@ -160,6 +161,33 @@ fn forStatement(self: *Parser) !*Stmt {
     }
 
     return body;
+}
+
+fn functionStatement(self: *Parser, kind: []const u8) !*Stmt {
+    const alloc_print = try std.fmt.allocPrint(self.allocator, "Expect {s} name.", .{kind});
+    const name = self.consume(TokenType.IDENTIFIER, alloc_print);
+
+    const expect_paren = try std.fmt.allocPrint(self.allocator, "Expect '(' after {s} name.", .{kind});
+    _ = self.consume(TokenType.LEFT_PAREN, expect_paren);
+
+    var parements = std.ArrayList(Token).init(self.allocator);
+
+    if (!self.check(TokenType.RIGHT_PAREN)) {
+        if (parements.items.len >= 255) {
+            return error.ExceededArgs;
+        }
+
+        try parements.append(self.consume(TokenType.IDENTIFIER, "Expect parameter name"));
+        while (self.match(&.{TokenType.COMMA})) {
+            try parements.append(self.consume(TokenType.IDENTIFIER, "Expect parameter name"));
+        }
+    }
+    _ = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.");
+
+    const expect_left_brace = try std.fmt.allocPrint(self.allocator, "Expect '{{' before {s} body.", .{kind});
+    _ = self.consume(TokenType.LEFT_BRACE, expect_left_brace);
+    const body = try self.block();
+    return Stmt.init(self.allocator, .{ .function = .{ .name = name, .body = body, .params = try parements.toOwnedSlice() } });
 }
 
 pub fn init(tokens: std.ArrayList(Token), allocator: Allocator) Parser {
@@ -278,7 +306,43 @@ fn unary(self: *Parser) ParserError!*Expr {
             return ParserError.ParsingUnary;
         };
     }
-    return self.primary();
+    return self.call() catch |e| {
+        std.log.err("Error calling callable {!}\n", .{e});
+        return ParserError.CallableError;
+    };
+}
+
+fn call(self: *Parser) !*Expr {
+    var expr = try self.primary();
+
+    while (true) {
+        if (self.match(&.{TokenType.LEFT_PAREN})) {
+            expr = try self.finishCall(expr);
+        } else {
+            break;
+        }
+    }
+
+    return expr;
+}
+
+fn finishCall(self: *Parser, callee: *Expr) !*Expr {
+    var arguments = std.ArrayList(*Expr).init(self.allocator);
+
+    if (!self.check(TokenType.RIGHT_PAREN)) {
+        try arguments.append(try self.expression());
+        while (self.match(&.{TokenType.COMMA})) {
+            if (arguments.items.len >= 255) {
+                std.log.err("Can't have more than 255 arguments.\n", .{});
+                return ParserError.ExceededArgs;
+            }
+            try arguments.append(try self.expression());
+        }
+    }
+
+    const paren = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.");
+
+    return Expr.init(self.allocator, .{ .call = .{ .callee = callee, .paren = paren, .arguments = try arguments.toOwnedSlice() } });
 }
 
 fn primary(self: *Parser) ParserError!*Expr {
@@ -425,4 +489,6 @@ const ParserError = error{
     ParsingPrimary,
     ParsingVariable,
     ParsingAssign,
+    ExceededArgs,
+    CallableError,
 };

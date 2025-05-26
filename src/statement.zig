@@ -29,7 +29,7 @@ pub const Stmt = union(StatementType) {
             .block => visitor.visitBlock(self),
             .class => visitor.visitClass(self),
             .expression => visitor.visitExpression(self),
-            .function => visitor.visitFunction(self),
+            .function => visitor.visitFunctionStmt(self),
             .if_statement => visitor.visitIfStmt(self),
             .print => visitor.visitPrint(self),
             .return_statement => visitor.visitReturn(self),
@@ -57,7 +57,7 @@ pub const Expression = struct {
 pub const Function = struct {
     name: Token,
     params: []Token,
-    body: []Stmt,
+    body: []*Stmt,
 };
 
 pub const If = struct {

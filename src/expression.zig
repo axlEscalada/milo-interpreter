@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const token = @import("token.zig");
+const Callable = @import("interpreter.zig").Callable;
 
 pub const Binary = struct {
     operator: token.Token,
@@ -37,6 +38,12 @@ pub const Logical = struct {
     right: *Expr,
 };
 
+pub const Call = struct {
+    callee: *Expr,
+    paren: token.Token,
+    arguments: []*Expr,
+};
+
 pub const Expr = union(ExprType) {
     binary: Binary,
     unary: Unary,
@@ -45,6 +52,7 @@ pub const Expr = union(ExprType) {
     variable: Variable,
     assign: Assign,
     logical: Logical,
+    call: Call,
 
     pub const Self = @This();
 
@@ -67,17 +75,19 @@ pub const Expr = union(ExprType) {
             .variable => visitor.visitVariableExpr(this),
             .assign => visitor.visitAssignExpr(this),
             .logical => visitor.visitLogicalExpr(this),
+            .call => visitor.visitCallExpr(this),
         };
     }
 };
 
-pub const ExprType = enum { binary, unary, literal, grouping, variable, assign, logical };
-pub const ObjectType = enum { string, float, boolean, nil };
+pub const ExprType = enum { binary, unary, literal, grouping, variable, assign, logical, call };
+pub const ObjectType = enum { string, float, boolean, nil, callable };
 pub const Object = union(ObjectType) {
     string: []const u8,
     float: f64,
     boolean: bool,
     nil: ?u1,
+    callable: Callable,
 
     pub fn init(allocator: Allocator) !*Object {
         return allocator.create(Object) catch |e| {
@@ -88,6 +98,12 @@ pub const Object = union(ObjectType) {
 
     fn Type(comptime field: anytype) type {
         return @typeInfo(std.meta.fieldInfo(Object, field).type).Pointer.child;
+    }
+
+    pub fn initCallable(allocator: Allocator, callable: Callable) !*Object {
+        const obj = try allocator.create(Object);
+        obj.* = .{ .callable = callable };
+        return obj;
     }
 
     pub fn initBool(allocator: Allocator, boolean: bool) !*Object {

@@ -9,9 +9,10 @@ const Environment = @import("environment.zig").Environment;
 
 pub const Interpreter = struct {
     allocator: Allocator,
+    globals: *Environment,
     environment: *Environment,
 
-    pub fn init(allocator: Allocator) *Interpreter {
+    pub fn init(allocator: Allocator) !*Interpreter {
         const interpreter = allocator.create(Interpreter) catch |e| {
             std.log.err("Error while creating interpreter {any}\n", .{e});
             @panic("error while creating");
@@ -22,7 +23,15 @@ pub const Interpreter = struct {
             @panic("error while creating");
         };
 
-        interpreter.* = .{ .allocator = allocator, .environment = global_env };
+        const callable_clock = ClockFunction.init(allocator).callable();
+        const clock_object = Object.initCallable(allocator, callable_clock) catch |e| {
+            std.log.err("Error while creating clock object {any}\n", .{e});
+            @panic("error while creating");
+        };
+
+        try global_env.define(allocator, "clock", clock_object);
+
+        interpreter.* = .{ .allocator = allocator, .environment = global_env, .globals = global_env };
         return interpreter;
     }
 
@@ -59,6 +68,10 @@ pub const Interpreter = struct {
                 },
                 Object.nil => {
                     return "nil";
+                },
+                Object.callable => {
+                    return try std.fmt.allocPrint(self.allocator, "<native fn@{*}>", .{ob.callable.ptr});
+                    // return "<native fn>";
                 },
             };
         }
@@ -137,9 +150,9 @@ pub const Interpreter = struct {
         _ = stmt;
     }
 
-    pub fn visitFunction(self: *Interpreter, stmt: *Stmt) !void {
-        _ = self;
-        _ = stmt;
+    pub fn visitFunctionStmt(self: *Interpreter, stmt: *Stmt) !void {
+        const function = MiloFunction.init(self.allocator, stmt);
+        try self.environment.define(self.allocator, stmt.function.name.lexer, try Object.initCallable(self.allocator, function.callable()));
     }
 
     pub fn visitIfStmt(self: *Interpreter, stmt: *Stmt) !void {
@@ -180,6 +193,27 @@ pub const Interpreter = struct {
             value = try self.evaluate(it);
         }
         try self.environment.define(self.allocator, stmt.variable.name.lexer, value);
+    }
+
+    pub fn visitCallExpr(self: *Interpreter, expr: Expr) !*Object {
+        const callee = try self.evaluate(expr.call.callee);
+
+        var arguments = std.ArrayList(*Object).init(self.allocator);
+
+        for (expr.call.arguments) |arg| {
+            try arguments.append(try self.evaluate(arg));
+        }
+
+        return switch (callee.*) {
+            .callable => {
+                if (arguments.items.len != callee.callable.arity()) {
+                    std.log.err("Expected {d} arguments but got {d}.\n", .{ arguments.items.len, callee.callable.arity() });
+                    return error.UnexpectedArgsSize;
+                }
+                return callee.callable.call(self, try arguments.toOwnedSlice());
+            },
+            else => return error.NotCallable,
+        };
     }
 
     pub fn visitVariableExpr(self: *Interpreter, expr: Expr) !*Object {
@@ -253,6 +287,108 @@ pub const Interpreter = struct {
             .boolean => object.*.boolean,
             .nil => false,
             else => true,
+        };
+    }
+};
+
+const CallErr = error{
+    CallError,
+    OutOfMemory,
+};
+
+pub const Callable = struct {
+    ptr: *anyopaque,
+    callFn: *const fn (ptr: *anyopaque, interpreter: *Interpreter, arguments: []*Object) CallErr!*Object,
+    arityFn: *const fn (ptr: *anyopaque) usize,
+
+    fn call(self: Callable, interpreter: *Interpreter, arguments: []*Object) !*Object {
+        return self.callFn(self.ptr, interpreter, arguments);
+    }
+
+    fn arity(self: Callable) usize {
+        return self.arityFn(self.ptr);
+    }
+};
+
+const ClockFunction = struct {
+    allocator: Allocator,
+
+    fn init(allocator: Allocator) *ClockFunction {
+        const clock = allocator.create(ClockFunction) catch unreachable;
+        clock.* = ClockFunction{
+            .allocator = allocator,
+        };
+        return clock;
+    }
+
+    fn arity(ptr: *anyopaque) usize {
+        _ = ptr;
+        return 0;
+    }
+
+    fn call(ptr: *anyopaque, interpreter: *Interpreter, arguments: []*Object) CallErr!*Object {
+        _ = interpreter;
+        _ = arguments;
+
+        const self: *ClockFunction = @ptrCast(@alignCast(ptr));
+
+        const millis = std.time.milliTimestamp();
+        const time = @as(f64, @floatFromInt(millis)) / 1000.0;
+
+        return Object.initFloat(self.allocator, time) catch |e| {
+            std.debug.print("Error {!}", .{e});
+            return CallErr.CallError;
+        };
+    }
+
+    fn callable(self: *ClockFunction) Callable {
+        return .{
+            .ptr = self,
+            .callFn = call,
+            .arityFn = arity,
+        };
+    }
+};
+
+const MiloFunction = struct {
+    allocator: Allocator,
+    declaration: *Stmt,
+
+    fn init(allocator: Allocator, declaration: *Stmt) *MiloFunction {
+        const function = allocator.create(MiloFunction) catch unreachable;
+        function.* = MiloFunction{
+            .allocator = allocator,
+            .declaration = declaration,
+        };
+        return function;
+    }
+
+    fn arity(ptr: *anyopaque) usize {
+        const self: *MiloFunction = @ptrCast(@alignCast(ptr));
+        return self.declaration.function.params.len;
+    }
+
+    fn call(ptr: *anyopaque, interpreter: *Interpreter, arguments: []*Object) CallErr!*Object {
+        const self: *MiloFunction = @ptrCast(@alignCast(ptr));
+        const environment = Environment.init(self.allocator, interpreter.globals) catch |e| {
+            std.log.err("Error {!}\n", .{e});
+            return CallErr.CallError;
+        };
+
+        for (self.declaration.function.params, 0..) |param, i| {
+            try environment.define(self.allocator, param.lexer, arguments[i]);
+        }
+
+        interpreter.executeBlock(self.declaration.function.body, environment) catch return CallErr.CallError;
+
+        return try Object.initNil(self.allocator);
+    }
+
+    fn callable(self: *MiloFunction) Callable {
+        return .{
+            .ptr = self,
+            .callFn = call,
+            .arityFn = arity,
         };
     }
 };

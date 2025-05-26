@@ -58,7 +58,7 @@ fn runPrompt(alloc: std.mem.Allocator) !void {
     var buffer: [1024]u8 = undefined;
     var line: []u8 = undefined;
     _ = try alloc.alloc(u8, 1024);
-    var interpreter = Interpreter.init(alloc);
+    var interpreter = try Interpreter.init(alloc);
     defer interpreter.deinit();
     while (true) {
         _ = try stdout.write(">> ");
@@ -96,7 +96,7 @@ fn runFile(path: []const u8, allocator: std.mem.Allocator) !void {
 
     var line_count: usize = 0;
     var byte_count: usize = 0;
-    var interpreter = Interpreter.init(allocator);
+    var interpreter = try Interpreter.init(allocator);
     defer interpreter.deinit();
     while (true) {
         reader.streamUntilDelimiter(arr.writer(), '\n', null) catch |err| switch (err) {
