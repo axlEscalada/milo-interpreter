@@ -26,16 +26,16 @@ pub const Stmt = union(StatementType) {
 
     pub fn accept(self: *Stmt, comptime T: type, visitor: anytype) T {
         return switch (self.*) {
-            .block => visitor.visitBlock(self),
-            .class => visitor.visitClass(self),
-            .expression => visitor.visitExpression(self),
+            .block => visitor.visitBlockStmt(self),
+            .class => visitor.visitClassStmt(self),
+            .expression => visitor.visitExpressionStmt(self),
             .function => visitor.visitFunctionStmt(self),
             .if_statement => visitor.visitIfStmt(self),
-            .print => visitor.visitPrint(self),
-            .return_statement => visitor.visitReturnStatement(self),
+            .print => visitor.visitPrintStmt(self),
+            .return_statement => visitor.visitReturnStmt(self),
             .variable => visitor.visitVariableStmt(self),
             .while_statement => visitor.visitWhileStmt(self),
-            .@"for" => visitor.visitForStatement(self),
+            .@"for" => visitor.visitForStmt(self),
         };
     }
 };

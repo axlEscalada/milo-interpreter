@@ -6,6 +6,7 @@ const Scanner = @import("scanner.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Interpreter = @import("interpreter.zig").Interpreter;
+const Resolver = @import("resolver.zig").Resolver;
 const Environment = @import("interpreter.zig").Environment;
 const AstPrinter = @import("ast_printer.zig").AstPrinter;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
@@ -94,6 +95,9 @@ fn runFile(path: []const u8, allocator: std.mem.Allocator) !void {
 
     var parser = Parser.init(tokens, allocator);
     const statements = try parser.parse();
+    const resolver = try Resolver.init(allocator, interpreter);
+
+    try resolver.resolve(statements);
     try interpreter.interpret(statements);
 
     var line_count: usize = 1;

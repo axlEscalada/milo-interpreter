@@ -42,25 +42,24 @@ pub const Environment = struct {
 
     pub fn assign(self: *Environment, name: Token, value: *Object) !void {
         if (self.values.contains(name.lexer)) {
-            // std.debug.print("Updating value of {s}\n", .{name.lexer});
             try self.values.put(name.lexer, value);
             return;
         }
         if (self.enclosing) |enc| {
-            // std.debug.print("Enc: Updating value of {s}\n", .{name.lexer});
             try enc.assign(name, value);
             return;
         }
         return error.UndefinedVariable;
     }
 
+    pub fn assignAt(self: *Environment, distance: usize, name: Token, value: *Object) !void {
+        try self.ancestor(distance).values.put(name.lexer, value);
+    }
+
     pub fn contains(self: *Environment, key: []const u8) bool {
         if (self.values.contains(key)) {
             return true;
         }
-        // else if (self.enclosing) |enc| {
-        //     return enc.contains(key);
-        // }
 
         return false;
     }
@@ -76,5 +75,19 @@ pub const Environment = struct {
 
         std.log.err("Use of undefined identifier `{s}`.\n", .{name.lexer});
         return error.UndefinedVariable;
+    }
+
+    pub fn getAt(self: *Environment, distance: usize, name: []const u8) ?*Object {
+        return self.ancestor(distance).values.get(name).?;
+    }
+
+    fn ancestor(self: *Environment, distance: usize) *Environment {
+        var environment = self;
+
+        for (0..distance) |_| {
+            environment = environment.enclosing.?;
+        }
+
+        return environment;
     }
 };

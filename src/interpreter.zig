@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Expr = @import("expression.zig").Expr;
+const ExprContext = @import("expression.zig").ExprContext;
 const Object = @import("expression.zig").Object;
 const Stmt = @import("statement.zig").Stmt;
 const Token = @import("token.zig").Token;
@@ -12,6 +13,7 @@ pub const Interpreter = struct {
     globals: *Environment,
     environment: *Environment,
     return_value: ?*Object,
+    locals: std.HashMap(Expr, usize, ExprContext, std.hash_map.default_max_load_percentage),
 
     pub fn init(allocator: Allocator) !*Interpreter {
         const interpreter = allocator.create(Interpreter) catch |e| {
@@ -32,7 +34,7 @@ pub const Interpreter = struct {
 
         try global_env.define(allocator, "clock", clock_object);
 
-        interpreter.* = .{ .allocator = allocator, .environment = global_env, .globals = global_env, .return_value = null };
+        interpreter.* = .{ .allocator = allocator, .environment = global_env, .globals = global_env, .return_value = null, .locals = std.HashMap(Expr, usize, ExprContext, std.hash_map.default_max_load_percentage).init(allocator) };
         return interpreter;
     }
 
@@ -79,12 +81,16 @@ pub const Interpreter = struct {
         return "nonimopl";
     }
 
-    pub fn visitLiteral(self: *Interpreter, expr: Expr) !*Object {
+    pub fn resolve(self: *Interpreter, expr: Expr, depth: usize) !void {
+        try self.locals.put(expr, depth);
+    }
+
+    pub fn visitLiteralExpr(self: *Interpreter, expr: Expr) !*Object {
         _ = self;
         return expr.literal.value;
     }
 
-    pub fn visitGrouping(self: *Interpreter, expr: Expr) !*Object {
+    pub fn visitGroupingExpr(self: *Interpreter, expr: Expr) !*Object {
         return self.evaluate(expr.grouping.expression);
     }
 
@@ -104,7 +110,7 @@ pub const Interpreter = struct {
         return try Object.initCallable(self.allocator, function.callable());
     }
 
-    pub fn visitBinary(self: *Interpreter, expr: Expr) anyerror!*Object {
+    pub fn visitBinaryExpr(self: *Interpreter, expr: Expr) anyerror!*Object {
         const left = try self.evaluate(expr.binary.left);
         const right = try self.evaluate(expr.binary.right);
 
@@ -127,11 +133,11 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn visitExpression(self: *Interpreter, stmt: *Stmt) !void {
+    pub fn visitExpressionStmt(self: *Interpreter, stmt: *Stmt) !void {
         _ = try self.evaluate(stmt.expression.expression);
     }
 
-    pub fn visitPrint(self: *Interpreter, stmt: *Stmt) !void {
+    pub fn visitPrintStmt(self: *Interpreter, stmt: *Stmt) !void {
         const value = self.evaluate(stmt.print.expression) catch |err| {
             if (err == error.UndefinedVariable) {
                 return err;
@@ -144,14 +150,14 @@ pub const Interpreter = struct {
         _ = try file.write("\n");
     }
 
-    pub fn visitBlock(self: *Interpreter, stmt: *Stmt) !void {
+    pub fn visitBlockStmt(self: *Interpreter, stmt: *Stmt) !void {
         var environment = try Environment.init(self.allocator, self.environment);
         defer environment.deinit();
 
         try self.executeBlock(stmt.block.statements, environment);
     }
 
-    pub fn visitClass(self: *Interpreter, stmt: *Stmt) !void {
+    pub fn visitClassStmt(self: *Interpreter, stmt: *Stmt) !void {
         _ = self;
         _ = stmt;
     }
@@ -175,13 +181,13 @@ pub const Interpreter = struct {
         }
     }
 
-    pub fn visitForStatement(self: *Interpreter, stmt: *Stmt) !void {
+    pub fn visitForStmt(self: *Interpreter, stmt: *Stmt) !void {
         while (self.isTruthy(try self.evaluate(stmt.@"for".condition))) {
             try self.execute(stmt.@"for".body);
         }
     }
 
-    pub fn visitReturnStatement(self: *Interpreter, stmt: *Stmt) !void {
+    pub fn visitReturnStmt(self: *Interpreter, stmt: *Stmt) !void {
         const value = blk: {
             if (stmt.return_statement.value != null) {
                 break :blk try self.evaluate(stmt.return_statement.value.?);
@@ -226,15 +232,36 @@ pub const Interpreter = struct {
     }
 
     pub fn visitVariableExpr(self: *Interpreter, expr: Expr) !*Object {
-        const variable = try self.environment.get(expr.variable.name);
-        if (variable) |v| {
-            return v;
-        } else return error.NotInitializedVariable;
+        return self.lookupVariable(expr.variable.name, expr);
+    }
+
+    fn lookupVariable(self: *Interpreter, name: Token, expr: Expr) !*Object {
+        const distance = self.locals.get(expr);
+        const variable = blk: {
+            if (distance != null) {
+                break :blk self.environment.getAt(distance.?, name.lexer);
+            } else {
+                break :blk try self.globals.get(name);
+            }
+        };
+
+        if (variable == null) {
+            return error.NotInitializedVariable;
+        }
+
+        return variable.?;
     }
 
     pub fn visitAssignExpr(self: *Interpreter, expr: Expr) !*Object {
         const value = try self.evaluate(expr.assign.value);
-        try self.environment.assign(expr.assign.name, value);
+        const distance = self.locals.get(expr);
+
+        if (distance != null) {
+            try self.environment.assignAt(distance.?, expr.assign.name, value);
+        } else {
+            try self.globals.assign(expr.assign.name, value);
+        }
+
         return value;
     }
 

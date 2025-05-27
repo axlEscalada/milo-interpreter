@@ -13,7 +13,7 @@ pub const AstPrinter = struct {
         return expr.accept(this, []const u8);
     }
 
-    pub fn visitBinary(this: *AstPrinter, expr: *Expr) ![]const u8 {
+    pub fn visitBinaryExpr(this: *AstPrinter, expr: *Expr) ![]const u8 {
         var expressions = [_]*Expr{ expr.left.?, expr.right.? };
         return try this.parenthesize(expr.operator.?.lexer, &expressions);
     }
